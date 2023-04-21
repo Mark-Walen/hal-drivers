@@ -44,6 +44,9 @@
 #include "adxl345.h"
 #include "malloc.h"
 
+#define i2c_read(read_buf, length) i2c_master_receive(ADXL345_ADDRESS, read_buf, length)
+#define i2c_write(write_buf, length) i2c_master_transmit(ADXL345_ADDRESS, write_buf, length)
+
 /******************************************************************************/
 /************************ Functions Definitions *******************************/
 /******************************************************************************/

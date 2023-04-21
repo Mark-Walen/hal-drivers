@@ -43,8 +43,6 @@
 /***************************** Include Files **********************************/
 /******************************************************************************/
 #include <stdint.h>
-#include "i2c.h"
-#include "spi.h"
 
 /******************************************************************************/
 /******************************** ADXL345 *************************************/
@@ -176,7 +174,7 @@
 /* ADXL345 Full Resolution Scale Factor */
 #define ADXL345_SCALE_FACTOR    0.0039
 
-#define COMM_TYPE				ADXL345_SPI_COMM
+#define COMM_TYPE				ADXL345_I2C_COMM
 
 /******************************************************************************/
 /*************************** Types Declarations *******************************/
@@ -274,8 +272,8 @@ extern uint8_t spi_remove(void);
 
 extern uint8_t i2c_init(void);
 
-extern uint8_t i2c_read(uint8_t *p_data, uint16_t length);
+extern uint8_t i2c_master_receive(uint8_t slave_address, uint8_t *read_buf, uint16_t length);
 
-extern uint8_t i2c_write(uint8_t *p_data, uint16_t length);
+extern uint8_t i2c_master_transmit(uint8_t slave_address, uint8_t *write_buf, uint16_t length);
 
 #endif	/* __ADXL345_H__ */
