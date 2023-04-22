@@ -53,7 +53,7 @@
 #define ADXL345_I2C_COMM       1
 
 /* I2C address of the device */
-#define ADXL345_ADDRESS		0x1D
+#define ADXL345_ADDRESS		0x53
 
 /* SPI commands */
 #define ADXL345_SPI_READ        (1 << 7)
@@ -217,9 +217,10 @@ void adxl345_get_xyz(int16_t* x,
 		     int16_t* z);
 
 /*! Reads the raw output data of each axis and converts it to g. */
-void adxl345_get_g_xyz(float* x,
-		       float* y,
-		       float* z);
+void adxl345_get_g_xyz(struct adxl345_dev *dev,
+				float* x,
+		       	float* y,
+		       	float* z);
 
 /*! Enables/disables the tap detection. */
 void adxl345_set_tap_detection(uint8_t tap_type,
@@ -262,18 +263,20 @@ void adxl345_set_range_resolution(struct adxl345_dev *dev,
 				  uint8_t full_res);
 
 
-extern uint8_t  spi_transfer(uint8_t *tx_buffer,
+extern int  spi_transfer(uint8_t *tx_buffer,
 					uint8_t *rx_buffer,
 					uint16_t length);
 
-extern uint8_t spi_init(void);
+extern int spi_init(void);
 
-extern uint8_t spi_remove(void);
+extern int spi_remove(void);
 
-extern uint8_t i2c_init(void);
+extern int i2c_init(void);
 
-extern uint8_t i2c_master_receive(uint8_t slave_address, uint8_t *read_buf, uint16_t length);
+extern int i2c_remove(void);
 
-extern uint8_t i2c_master_transmit(uint8_t slave_address, uint8_t *write_buf, uint16_t length);
+extern int i2c_master_receive(uint8_t slave_address, uint8_t *read_buf, uint16_t length);
+
+extern int i2c_master_transmit(uint8_t slave_address, uint8_t *write_buf, uint16_t length);
 
 #endif	/* __ADXL345_H__ */

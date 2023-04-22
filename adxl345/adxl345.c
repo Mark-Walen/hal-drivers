@@ -41,7 +41,8 @@
 /***************************** Include Files **********************************/
 /******************************************************************************/
 #include <stdlib.h>
-#include "adxl345.h"
+#include <stdio.h>
+#include "adxl345/adxl345.h"
 #include "malloc.h"
 
 #define i2c_read(read_buf, length) i2c_master_receive(ADXL345_ADDRESS, read_buf, length)
@@ -60,19 +61,21 @@
 *******************************************************************************/
 uint8_t adxl345_get_register_value(uint8_t register_address)
 {
-	uint8_t data_buffer[2] = {0, 0};
-	uint8_t register_value = 0;
+	uint8_t register_value = 0xff;
+	int status = 0;
 
-	#if (defined(COMM_TYPE)) && (COMM_TYPE== ADXL345_SPI_COMM)
+	#if (defined(COMM_TYPE)) && (COMM_TYPE == ADXL345_SPI_COMM)
+		uint8_t data_buffer[2] = {0, 0};
 		data_buffer[0] = ADXL345_SPI_READ | register_address;
 		data_buffer[1] = 0;
 		spi_transfer(data_buffer, data_buffer, 2);
 		register_value = data_buffer[1];
 	#else
-		i2c_write(&register_address, // Transmission data.
+		status = i2c_write(&register_address, // Transmission data.
 				1);                 // Number of bytes to write.
-		i2c_read(&register_value,    // Received data.
+		status = i2c_read(&register_value,    // Received data.
 			       1);                  // Number of bytes to read.
+	#endif
 	return register_value;
 }
 
@@ -100,6 +103,7 @@ void adxl345_set_register_value(uint8_t register_address,
 		data_buffer[1] = register_value;
 		i2c_write(data_buffer,        // Received data.
 				2);                  // Number of bytes to read.
+	#endif
 }
 
 /***************************************************************************//**
@@ -129,6 +133,7 @@ int32_t adxl345_init(struct adxl345_dev **device)
 		status = spi_init();
 	#else
 		status = i2c_init();
+	#endif
 
 	if (adxl345_get_register_value(ADXL345_DEVID) != ADXL345_ID)
 		status = -1;
@@ -153,9 +158,10 @@ int32_t adxl345_remove(struct adxl345_dev *dev)
 	int32_t ret;
 
 	#if (defined(COMM_TYPE)) && (COMM_TYPE== ADXL345_SPI_COMM)
-		ret = spi_remove(dev->spi_desc);
+		ret = spi_remove();
 	#else
-		ret = i2c_remove(dev->i2c_desc);
+		ret = i2c_remove();
+	#endif
 
 	free(dev);
 
@@ -222,6 +228,7 @@ void adxl345_get_xyz(int16_t* x,
 		*y = ((int16_t)read_buffer[3] << 8) + read_buffer[2];
 		/* z = ((ADXL345_DATAZ1) << 8) + ADXL345_DATAZ0 */
 		*z = ((int16_t)read_buffer[5] << 8) + read_buffer[4];
+	#endif
 }
 
 /***************************************************************************//**
@@ -233,9 +240,10 @@ void adxl345_get_xyz(int16_t* x,
  *
  * @return None.
 *******************************************************************************/
-void adxl345_get_g_xyz(float* x,
-		       float* y,
-		       float* z)
+void adxl345_get_g_xyz(struct adxl345_dev *dev,
+			    float* x,
+		        float* y,
+		        float* z)
 {
 	int16_t x_data = 0;  // X-axis's output data.
 	int16_t y_data = 0;  // Y-axis's output data.
@@ -452,7 +460,7 @@ void adxl345_set_free_fall_detection(uint8_t ff_on_off,
 	uint8_t old_int_enable = 0;
 	uint8_t new_int_enable = 0;
 
-	adxl345_set_register_value(ADXL345_THRESH_FF ff_thresh);
+	adxl345_set_register_value(ADXL345_THRESH_FF, ff_thresh);
 	adxl345_set_register_value(ADXL345_TIME_FF, ff_time);
 	old_int_map = adxl345_get_register_value(ADXL345_INT_MAP);
 	new_int_map = old_int_map & ~(ADXL345_FREE_FALL);
