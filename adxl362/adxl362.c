@@ -48,57 +48,62 @@
 /************************ Functions Definitions *******************************/
 /******************************************************************************/
 
+DEVICE_INTF_RET_TYPE adxl362_null_ptr_check(adxl362_t *adxl362)
+{
+    if (adxl362 == NULL || adxl362->gpio_set_pin == NULL || adxl362->gpio_reset_pin == NULL)
+    {
+        return DEVICE_E_NULL_PTR;
+    }
+    return null_ptr_check(adxl362->dev);
+}
+
 /***************************************************************************//**
  * @brief Initializes communication with the device and checks if the part is
  *        present by reading the device id.
  *
  * @param device     - The device structure.
- * @param init_param - The structure that contains the device initial
- * 		       parameters.
  *
  * @return  0 - the initialization was successful and the device is present;
  *         -1 - an error occurred.
+ * 
+ * @retval DEVICE_INTF_RET_TYPE
 *******************************************************************************/
-int32_t adxl362_init(struct adxl362_dev **device)
+DEVICE_INTF_RET_TYPE adxl362_init(adxl362_t *adxl362)
 {
-	struct adxl362_dev *dev;
-	uint8_t reg_value = 0;
-	int32_t status = -1;
+	if (adxl362 == NULL) return DEVICE_E_NULL_PTR;
+	
+	adxl362->dev->chip_id = 0;
 
-	dev = (struct adxl362_dev *)malloc(sizeof(*dev));
-	if (!dev)
-		return -1;
-
-	/* SPI */
-	status = spi_init();
-
-	adxl362_get_register_value(dev, &reg_value, ADXL362_REG_PARTID, 1);
-	if((reg_value != ADXL362_PART_ID))
-		status = -1;
-
-	dev->selected_range = 2; // Measurement Range: +/- 2g (reset default).
-
-	*device = dev;
-
-	return status;
+	adxl362->selected_range = 2; // Measurement Range: +/- 2g (reset default).
+	return adxl362_get_id(adxl362);
 }
 
-/***************************************************************************//**
- * @brief Free the resources allocated by adxl362_init().
- *
- * @param dev - The device structure.
- *
- * @return ret - The result of the remove procedure.
-*******************************************************************************/
-int32_t adxl362_remove(struct adxl362_dev *dev)
+DEVICE_INTF_RET_TYPE adxl362_interface_init(adxl362_t *adxl362, device_t *dev,
+					 device_gpio_control_fptr_t gpio_set_pin,
+					 device_gpio_control_fptr_t gpio_reset_pin)
 {
-	int32_t ret;
+	if (adxl362 == NULL || dev == NULL)
+    {
+        return DEVICE_E_NULL_PTR;
+    }
 
-	ret = spi_remove();
+	adxl362->dev = dev;
+	adxl362->gpio_set_pin = gpio_set_pin;
+	adxl362->gpio_reset_pin = gpio_reset_pin;
+	return DEVICE_OK;
+}
 
-	free(dev);
+DEVICE_INTF_RET_TYPE adxl362_get_id(adxl362_t *adxl362)
+{
+	uint8_t reg_value = 0;
+	uint8_t ret = adxl362_null_ptr_check(adxl362);
+    if (ret != DEVICE_OK) return ret;
 
-	return ret;
+	adxl362_get_register_value(adxl362, &reg_value, ADXL362_REG_PARTID, 1);
+	if((reg_value != ADXL362_PART_ID)) return DEVICE_E_NOT_FOUND;
+	adxl362->dev->chip_id = reg_value;
+
+	return DEVICE_OK;
 }
 
 /***************************************************************************//**
@@ -111,17 +116,23 @@ int32_t adxl362_remove(struct adxl362_dev *dev)
  *
  * @return None.
 *******************************************************************************/
-void adxl362_set_register_value(uint16_t register_value,
-				uint8_t register_address,
-				uint8_t bytes_number)
+void adxl362_set_register_value(adxl362_t *adxl362, uint16_t register_value,
+								uint8_t register_address, uint8_t bytes_number)
 {
+	(void) bytes_number;
+	if (adxl362_null_ptr_check(adxl362) != DEVICE_OK) return;
+	
 	uint8_t buffer[4] = {0, 0, 0, 0};
+	device_t *dev = adxl362->dev;
+	device_gpio_typedef_t *nss = (device_gpio_typedef_t *) dev->intf_ptr;
 
 	buffer[0] = ADXL362_WRITE_REG;
 	buffer[1] = register_address;
 	buffer[2] = (register_value & 0x00FF);
 	buffer[3] = (register_value >> 8);
-	spi_transfer(buffer, buffer, bytes_number + 2);
+	adxl362->gpio_reset_pin(nss->port, nss->pin);
+	dev->write(buffer, 4, dev->fd);
+	adxl362->gpio_set_pin(nss->port, nss->pin);
 }
 
 /***************************************************************************//**
@@ -134,21 +145,22 @@ void adxl362_set_register_value(uint16_t register_value,
  *
  * @return None.
 *******************************************************************************/
-void adxl362_get_register_value(uint8_t* read_data,
-				uint8_t  register_address,
-				uint8_t  bytes_number)
+void adxl362_get_register_value(adxl362_t *adxl362, uint8_t *read_data,
+								uint8_t  register_address, uint8_t  bytes_number)
 {
-	uint8_t buffer[32];
+	if (adxl362_null_ptr_check(adxl362) != DEVICE_OK) return;
 
-	uint8_t index = 0;
+	uint8_t buffer[2];
+	device_t *dev = adxl362->dev;
+	device_gpio_typedef_t *nss = (device_gpio_typedef_t *) dev->intf_ptr;
 
 	buffer[0] = ADXL362_READ_REG;
 	buffer[1] = register_address;
-	for(index = 0; index < bytes_number; index++)
-		buffer[index + 2] = read_data[index];
-	spi_transfer(buffer, buffer, bytes_number + 2);
-	for(index = 0; index < bytes_number; index++)
-		read_data[index] = buffer[index + 2];
+
+	adxl362->gpio_reset_pin(nss->port, nss->pin);
+	dev->write(buffer, 2, dev->fd);
+	dev->read(read_data, bytes_number, dev->fd);
+	adxl362->gpio_set_pin(nss->port, nss->pin);
 }
 
 /***************************************************************************//**
@@ -160,19 +172,21 @@ void adxl362_get_register_value(uint8_t* read_data,
  *
  * @return None.
 *******************************************************************************/
-void adxl362_get_fifo_value(uint8_t  *buffer,
-			    uint16_t bytes_number)
+void adxl362_get_fifo_value(adxl362_t *adxl362,
+							uint8_t *buffer,
+							uint16_t bytes_number)
 {
-	uint8_t spi_buffer[512];
+	if (adxl362_null_ptr_check(adxl362) != DEVICE_OK || bytes_number > 512) return;
+	
+	uint8_t spi_cmd = ADXL362_WRITE_FIFO;
+	device_t *dev = adxl362->dev;
+	device_gpio_typedef_t *nss = (device_gpio_typedef_t *) dev->intf_ptr;
 
-	uint16_t index = 0;
-
-	spi_buffer[0] = ADXL362_WRITE_FIFO;
-	for(index = 0; index < bytes_number; index++)
-		spi_buffer[index + 1] = buffer[index];
-	spi_transfer(spi_buffer, bytes_number + 1);
-	for(index = 0; index < bytes_number; index++)
-		buffer[index] = spi_buffer[index + 1];
+	adxl362->gpio_reset_pin(nss->port, nss->pin);
+	dev->write(&spi_cmd, 1, dev->fd);
+	dev->read(buffer, bytes_number, dev->fd);
+	adxl362->gpio_set_pin(nss->port, nss->pin);
+	
 }
 
 /***************************************************************************//**
@@ -182,9 +196,9 @@ void adxl362_get_fifo_value(uint8_t  *buffer,
  *
  * @return None.
 *******************************************************************************/
-void adxl362_software_reset()
+void adxl362_software_reset(adxl362_t *adxl362)
 {
-	adxl362_set_register_value(ADXL362_RESET_KEY,
+	adxl362_set_register_value(adxl362, ADXL362_RESET_KEY,
 				   ADXL362_REG_SOFT_RESET,
 				   1);
 }
@@ -199,18 +213,35 @@ void adxl362_software_reset()
  *
  * @return None.
 *******************************************************************************/
-void adxl362_set_power_mode(uint8_t pwr_mode)
+void adxl362_set_power_mode(adxl362_t *adxl362, uint8_t pwr_mode)
 {
 	uint8_t old_power_ctl = 0;
 	uint8_t new_power_ctl = 0;
 
-	adxl362_get_register_value(&old_power_ctl,
+	adxl362_get_register_value(adxl362, &old_power_ctl,
 				   ADXL362_REG_POWER_CTL,
 				   1);
 	new_power_ctl = old_power_ctl & ~ADXL362_POWER_CTL_MEASURE(0x3);
 	new_power_ctl = new_power_ctl |
 			(pwr_mode * ADXL362_POWER_CTL_MEASURE(ADXL362_MEASURE_ON));
-	adxl362_set_register_value(new_power_ctl,
+	adxl362_set_register_value(adxl362, new_power_ctl,
+				   ADXL362_REG_POWER_CTL,
+				   1);
+}
+
+void adxl362_set_wakeup_mode(adxl362_t *adxl362, uint8_t wakeup)
+{
+    uint8_t old_power_ctl = 0;
+	uint8_t new_power_ctl = 0;
+
+    adxl362_get_register_value(adxl362, &old_power_ctl,
+				   ADXL362_REG_POWER_CTL,
+				   1);
+    new_power_ctl = old_power_ctl & ~ADXL362_POWER_CTL_MEASURE(0x8);
+    if (wakeup) {
+        new_power_ctl = new_power_ctl | ADXL362_POWER_CTL_WAKEUP;
+    }    
+    adxl362_set_register_value(adxl362, new_power_ctl,
 				   ADXL362_REG_POWER_CTL,
 				   1);
 }
@@ -226,21 +257,21 @@ void adxl362_set_power_mode(uint8_t pwr_mode)
  *
  * @return None.
 *******************************************************************************/
-void adxl362_set_range(struct adxl362_dev *dev,
+void adxl362_set_range(adxl362_t *adxl362,
 		       uint8_t g_range)
 {
 	uint8_t old_filter_ctl = 0;
 	uint8_t new_filter_ctl = 0;
 
-	adxl362_get_register_value(&old_filter_ctl,
+	adxl362_get_register_value(adxl362, &old_filter_ctl,
 				   ADXL362_REG_FILTER_CTL,
 				   1);
 	new_filter_ctl = old_filter_ctl & ~ADXL362_FILTER_CTL_RANGE(0x3);
 	new_filter_ctl = new_filter_ctl | ADXL362_FILTER_CTL_RANGE(g_range);
-	adxl362_set_register_value(new_filter_ctl,
+	adxl362_set_register_value(adxl362, new_filter_ctl,
 				   ADXL362_REG_FILTER_CTL,
 				   1);
-	dev->selected_range = (1 << g_range) * 2;
+	adxl362->selected_range = (1 << g_range) * 2;
 }
 
 /***************************************************************************//**
@@ -257,17 +288,17 @@ void adxl362_set_range(struct adxl362_dev *dev,
  *
  * @return None.
 *******************************************************************************/
-void adxl362_set_output_rate(uint8_t out_rate)
+void adxl362_set_output_rate(adxl362_t *adxl362, uint8_t out_rate)
 {
 	uint8_t old_filter_ctl = 0;
 	uint8_t new_filter_ctl = 0;
 
-	adxl362_get_register_value(&old_filter_ctl,
+	adxl362_get_register_value(adxl362, &old_filter_ctl,
 				   ADXL362_REG_FILTER_CTL,
 				   1);
 	new_filter_ctl = old_filter_ctl & ~ADXL362_FILTER_CTL_ODR(0x7);
 	new_filter_ctl = new_filter_ctl | ADXL362_FILTER_CTL_ODR(out_rate);
-	adxl362_set_register_value(new_filter_ctl,
+	adxl362_set_register_value(adxl362, new_filter_ctl,
 				   ADXL362_REG_FILTER_CTL,
 				   1);
 }
@@ -282,16 +313,17 @@ void adxl362_set_output_rate(uint8_t out_rate)
  *
  * @return None.
 *******************************************************************************/
-void adxl362_get_xyz(struct adxl362_dev *dev,
+void adxl362_get_xyz(adxl362_t *adxl362,
 		     int16_t* x,
 		     int16_t* y,
 		     int16_t* z)
 {
 	uint8_t xyz_values[6] = {0, 0, 0, 0, 0, 0};
 
-	adxl362_get_register_value(xyz_values,
+	adxl362_get_register_value(adxl362, xyz_values,
 				   ADXL362_REG_XDATA_L,
 				   6);
+	adxl362->dev->println("\r\n");
 	*x = ((int16_t)xyz_values[1] << 8) + xyz_values[0];
 	*y = ((int16_t)xyz_values[3] << 8) + xyz_values[2];
 	*z = ((int16_t)xyz_values[5] << 8) + xyz_values[4];
@@ -307,22 +339,22 @@ void adxl362_get_xyz(struct adxl362_dev *dev,
  *
  * @return None.
 *******************************************************************************/
-void adxl362_get_g_xyz(struct adxl362_dev *dev,
+void adxl362_get_g_xyz(adxl362_t *adxl362,
 		       float* x,
 		       float* y,
 		       float* z)
 {
 	uint8_t xyz_values[6] = {0, 0, 0, 0, 0, 0};
 
-	adxl362_get_register_value(xyz_values,
+	adxl362_get_register_value(adxl362, xyz_values,
 				   ADXL362_REG_XDATA_L,
 				   6);
 	*x = ((int16_t)xyz_values[1] << 8) + xyz_values[0];
-	*x /= (1000 / (dev->selected_range / 2));
+	*x /= (1000 / (adxl362->selected_range / 2));
 	*y = ((int16_t)xyz_values[3] << 8) + xyz_values[2];
-	*y /= (1000 / (dev->selected_range / 2));
+	*y /= (1000 / (adxl362->selected_range / 2));
 	*z = ((int16_t)xyz_values[5] << 8) + xyz_values[4];
-	*z /= (1000 / (dev->selected_range / 2));
+	*z /= (1000 / (adxl362->selected_range / 2));
 }
 
 /***************************************************************************//**
@@ -332,13 +364,13 @@ void adxl362_get_g_xyz(struct adxl362_dev *dev,
  *
  * @return temp_celsius - The value of the temperature(degree s Celsius).
 *******************************************************************************/
-float adxl362_read_temperature(void)
+float adxl362_read_temperature(adxl362_t *adxl362)
 {
 	uint8_t raw_temp_data[2] = {0, 0};
 	int16_t signed_temp = 0;
 	float temp_celsius = 0;
 
-	adxl362_get_register_value(raw_temp_data,
+	adxl362_get_register_value(adxl362, raw_temp_data,
 				   ADXL362_REG_TEMP_L,
 				   2);
 	signed_temp = (int16_t)(raw_temp_data[1] << 8) + raw_temp_data[0];
@@ -364,7 +396,7 @@ float adxl362_read_temperature(void)
  *
  * @return None.
 *******************************************************************************/
-void adxl362_fifo_setup(uint8_t  mode,
+void adxl362_fifo_setup(adxl362_t *adxl362, uint8_t  mode,
 			uint16_t water_mark_lvl,
 			uint8_t  en_temp_read)
 {
@@ -373,10 +405,10 @@ void adxl362_fifo_setup(uint8_t  mode,
 	write_val = ADXL362_FIFO_CTL_FIFO_MODE(mode) |
 		    (en_temp_read * ADXL362_FIFO_CTL_FIFO_TEMP) |
 		    ((0x100 & water_mark_lvl) >> 5);
-	adxl362_set_register_value(write_val,
+	adxl362_set_register_value(adxl362, write_val,
 				   ADXL362_REG_FIFO_CTL,
 				   1);
-	adxl362_set_register_value(water_mark_lvl,
+	adxl362_set_register_value(adxl362, water_mark_lvl,
 				   ADXL362_REG_FIFO_SAMPLES,
 				   1);
 }
@@ -396,7 +428,7 @@ void adxl362_fifo_setup(uint8_t  mode,
  *
  * @return None.
 *******************************************************************************/
-void adxl362_setup_activity_detection(uint8_t  ref_or_abs,
+void adxl362_setup_activity_detection(adxl362_t *adxl362, uint8_t  ref_or_abs,
 				      uint16_t threshold,
 				      uint8_t  time)
 {
@@ -404,21 +436,21 @@ void adxl362_setup_activity_detection(uint8_t  ref_or_abs,
 	uint8_t new_act_inact_reg = 0;
 
 	/* Configure motion threshold and activity timer. */
-	adxl362_set_register_value((threshold & 0x7FF),
+	adxl362_set_register_value(adxl362, (threshold & 0x7FF),
 				   ADXL362_REG_THRESH_ACT_L,
 				   2);
-	adxl362_set_register_value(time,
+	adxl362_set_register_value(adxl362, time,
 				   ADXL362_REG_TIME_ACT,
 				   1);
 	/* Enable activity interrupt and select a referenced or absolute
 	   configuration. */
-	adxl362_get_register_value(&old_act_inact_reg,
+	adxl362_get_register_value(adxl362, &old_act_inact_reg,
 				   ADXL362_REG_ACT_INACT_CTL,
 				   1);
 	new_act_inact_reg = old_act_inact_reg & ~ADXL362_ACT_INACT_CTL_ACT_REF;
 	new_act_inact_reg |= ADXL362_ACT_INACT_CTL_ACT_EN |
 			     (ref_or_abs * ADXL362_ACT_INACT_CTL_ACT_REF);
-	adxl362_set_register_value(new_act_inact_reg,
+	adxl362_set_register_value(adxl362, new_act_inact_reg,
 				   ADXL362_REG_ACT_INACT_CTL,
 				   1);
 }
@@ -438,7 +470,7 @@ void adxl362_setup_activity_detection(uint8_t  ref_or_abs,
  *
  * @return None.
 *******************************************************************************/
-void adxl362_setup_inactivity_detection(uint8_t  ref_or_abs,
+void adxl362_setup_inactivity_detection(adxl362_t *adxl362, uint8_t  ref_or_abs,
 					uint16_t threshold,
 					uint16_t time)
 {
@@ -446,19 +478,19 @@ void adxl362_setup_inactivity_detection(uint8_t  ref_or_abs,
 	uint8_t new_act_inact_reg = 0;
 
 	/* Configure motion threshold and inactivity timer. */
-	adxl362_set_register_value((threshold & 0x7FF),
+	adxl362_set_register_value(adxl362, (threshold & 0x7FF),
 				   ADXL362_REG_THRESH_INACT_L,
 				   2);
-	adxl362_set_register_value(time, ADXL362_REG_TIME_INACT_L, 2);
+	adxl362_set_register_value(adxl362, time, ADXL362_REG_TIME_INACT_L, 2);
 	/* Enable inactivity interrupt and select a referenced or absolute
 	   configuration. */
-	adxl362_get_register_value(&old_act_inact_reg,
+	adxl362_get_register_value(adxl362, &old_act_inact_reg,
 				   ADXL362_REG_ACT_INACT_CTL,
 				   1);
 	new_act_inact_reg = old_act_inact_reg & ~ADXL362_ACT_INACT_CTL_INACT_REF;
 	new_act_inact_reg |= ADXL362_ACT_INACT_CTL_INACT_EN |
 			     (ref_or_abs * ADXL362_ACT_INACT_CTL_INACT_REF);
-	adxl362_set_register_value(new_act_inact_reg,
+	adxl362_set_register_value(adxl362, new_act_inact_reg,
 				   ADXL362_REG_ACT_INACT_CTL,
 				   1);
 }

@@ -1,5 +1,6 @@
 {
     "files.associations": {
-        "adxl362.h": "c"
+        "adxl362.h": "c",
+        "device.h": "c"
     }
 }

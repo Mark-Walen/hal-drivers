@@ -44,6 +44,7 @@
 /***************************** Include Files **********************************/
 /******************************************************************************/
 #include <stdint.h>
+#include "device.h"
 
 /******************************************************************************/
 /********************************* ADXL362 ************************************/
@@ -195,11 +196,15 @@
 /*************************** Types Declarations *******************************/
 /******************************************************************************/
 
+typedef struct adxl362_dev adxl362_t;
 /**
  * @struct adxl362_dev
  * @brief ADXL362 Device structure.
  */
 struct adxl362_dev {
+	device_t *dev;
+	device_gpio_control_fptr_t gpio_set_pin;
+    device_gpio_control_fptr_t gpio_reset_pin;
 	/** Measurement Range: */
 	uint8_t		selected_range;
 };
@@ -208,73 +213,70 @@ struct adxl362_dev {
 /************************ Functions Declarations ******************************/
 /******************************************************************************/
 
-/*! Initializes the device. */
-int32_t adxl362_init(struct adxl362_dev **device);
+/*! Initializes the device interface. */
+DEVICE_INTF_RET_TYPE adxl362_interface_init(adxl362_t *adxl362, device_t *dev,
+								  device_gpio_control_fptr_t gpio_set_pin,
+								  device_gpio_control_fptr_t gpio_reset_pin);
 
-/*! Free the resources allocated by adxl362_init(). */
-int32_t adxl362_remove(struct adxl362_dev *dev);
+/*! Initializes the device */
+DEVICE_INTF_RET_TYPE adxl362_init(adxl362_t *adxl362);
+
+DEVICE_INTF_RET_TYPE adxl362_get_id(adxl362_t *adxl362);
 
 /*! Writes data into a register. */
-void adxl362_set_register_value(uint16_t register_value,
-				uint8_t  register_address,
-				uint8_t  bytes_number);
+void adxl362_set_register_value(adxl362_t *adxl362, uint16_t register_value,
+								uint8_t  register_address, uint8_t  bytes_number);
 
 /*! Performs a burst read of a specified number of registers. */
-void adxl362_get_register_value(uint8_t *read_data,
-				uint8_t  register_address,
-				uint8_t  bytes_number);
+void adxl362_get_register_value(adxl362_t *adxl362, uint8_t *read_data,
+								uint8_t  register_address, uint8_t  bytes_number);
 
 /*! Reads multiple bytes from the device's FIFO buffer. */
-void adxl362_get_fifo_value(uint8_t *buffer, uint16_t bytes_number);
+void adxl362_get_fifo_value(adxl362_t *adxl362, uint8_t *buffer, uint16_t bytes_number);
 
 /*! Resets the device via SPI communication bus. */
-void adxl362_software_reset(void);
+void adxl362_software_reset(adxl362_t *adxl362);
 
 /*! Places the device into standby/measure mode. */
-void adxl362_set_power_mode(uint8_t pwr_mode);
+void adxl362_set_power_mode(adxl362_t *adxl362, uint8_t pwr_mode);
+
+/*! Places the device into wekup/no_wakup mode. */
+void adxl362_set_wakeup_mode(adxl362_t *adxl362, uint8_t wakeup);
 
 /*! Selects the measurement range. */
-void adxl362_set_range(struct adxl362_dev *dev, uint8_t g_range);
+void adxl362_set_range(adxl362_t *adxl362, uint8_t g_range);
 
 /*! Selects the Output Data Rate of the device. */
-void adxl362_set_output_rate(uint8_t out_rate);
+void adxl362_set_output_rate(adxl362_t *adxl362, uint8_t out_rate);
 
 /*! Reads the 3-axis raw data from the accelerometer. */
-void adxl362_get_xyz(struct adxl362_dev *dev,
-		    int16_t *x,
-		    int16_t *y,
-		    int16_t *z);
+void adxl362_get_xyz(adxl362_t *adxl362,
+					 int16_t *x,
+					 int16_t *y,
+					 int16_t *z);
 
 /*! Reads the 3-axis raw data from the accelerometer and converts it to g. */
-void adxl362_get_g_xyz(struct adxl362_dev *dev,
-		       float* x,
-		       float* y,
-		       float* z);
+void adxl362_get_g_xyz(adxl362_t *adxl362,
+					   float *x,
+					   float *y,
+					   float *z);
 
 /*! Reads the temperature of the device. */
-float adxl362_read_temperature(void);
+float adxl362_read_temperature(adxl362_t *adxl362);
 
 /*! Configures the FIFO feature. */
-void adxl362_fifo_setup(uint8_t  mode,
-			uint16_t water_mark_lvl,
-			uint8_t  en_temp_read);
+void adxl362_fifo_setup(adxl362_t *adxl362, uint8_t mode,
+						uint16_t water_mark_lvl,
+						uint8_t en_temp_read);
 
 /*! Configures activity detection. */
-void adxl362_setup_activity_detection(uint8_t  ref_or_abs,
+void adxl362_setup_activity_detection(adxl362_t *adxl362, uint8_t  ref_or_abs,
 				    uint16_t threshold,
 				    uint8_t  time);
 
 /*! Configures inactivity detection. */
-void adxl362_setup_inactivity_detection(uint8_t  ref_or_abs,
+void adxl362_setup_inactivity_detection(adxl362_t *adxl362, uint8_t  ref_or_abs,
 					uint16_t threshold,
 					uint16_t time);
-
-extern uint8_t  spi_transfer(uint8_t *tx_buffer,
-					uint8_t *rx_buffer,
-					uint16_t length);
-
-extern uint8_t spi_init(void);
-
-extern uint8_t spi_remove(void);
 
 #endif /* __ADXL362_H__ */
