@@ -52,6 +52,45 @@
 /************************ Functions Definitions *******************************/
 /******************************************************************************/
 
+DEVICE_INTF_RET_TYPE adxl345_null_ptr_check(adxl345_t *adxl345)
+{
+#if (defined(COMM_TYPE)) && (COMM_TYPE == ADXL345_SPI_COMM)
+    if (adxl345 == NULL || adxl345->gpio_set_pin == NULL || adxl345->gpio_reset_pin == NULL)
+#else
+	if (adxl345 == NULL)
+#endif
+    {
+        return DEVICE_E_NULL_PTR;
+    }
+    return null_ptr_check(adxl345->dev);
+}
+
+#if (defined(COMM_TYPE)) && (COMM_TYPE == ADXL345_SPI_COMM)
+DEVICE_INTF_RET_TYPE adxl362_interface_init(adxl345_t *adxl345, device_t *dev,
+								  device_gpio_control_fptr_t gpio_set_pin,
+								  device_gpio_control_fptr_t gpio_reset_pin)
+{
+	if (adxl345 == NULL || dev == NULL)
+    {
+        return DEVICE_E_NULL_PTR;
+    }
+
+	adxl345->dev = dev;
+	adxl345->gpio_set_pin = gpio_set_pin;
+	adxl345->gpio_reset_pin = gpio_reset_pin;
+	return DEVICE_OK;
+}
+#else
+DEVICE_INTF_RET_TYPE adxl362_interface_init(adxl345_t *adxl345, device_t *dev)
+{
+	if (adxl345 == NULL || dev == NULL)
+    {
+        return DEVICE_E_NULL_PTR;
+    }
+	adxl345->dev = dev;
+}
+#endif
+
 /***************************************************************************//**
  * @brief Reads the value of a register.
  *
@@ -59,22 +98,21 @@
  *
  * @return register_value  - Value of the register.
 *******************************************************************************/
-uint8_t adxl345_get_register_value(uint8_t register_address)
+uint8_t adxl345_get_register_value(adxl345_t *adxl345, uint8_t register_address)
 {
+	if (adxl345_null_ptr_check(adxl345) != DEVICE_OK) return;
 	uint8_t register_value = 0xff;
+	uint8_t data_buffer[2] = {0, 0};
+	device_t *dev = adxl362->dev;
 	int status = 0;
 
 	#if (defined(COMM_TYPE)) && (COMM_TYPE == ADXL345_SPI_COMM)
-		uint8_t data_buffer[2] = {0, 0};
 		data_buffer[0] = ADXL345_SPI_READ | register_address;
 		data_buffer[1] = 0;
 		spi_transfer(data_buffer, data_buffer, 2);
 		register_value = data_buffer[1];
 	#else
-		status = i2c_write(&register_address, // Transmission data.
-				1);                 // Number of bytes to write.
-		status = i2c_read(&register_value,    // Received data.
-			       1);                  // Number of bytes to read.
+		status = adxl345->dev->write(&register_address, 1, adxl345->dev->fd);
 	#endif
 	return register_value;
 }

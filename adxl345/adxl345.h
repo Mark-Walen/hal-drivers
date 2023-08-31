@@ -43,6 +43,7 @@
 /***************************** Include Files **********************************/
 /******************************************************************************/
 #include <stdint.h>
+#include <device.h>
 
 /******************************************************************************/
 /******************************** ADXL345 *************************************/
@@ -180,23 +181,38 @@
 /*************************** Types Declarations *******************************/
 /******************************************************************************/
 
+typedef struct adxl345_dev adxl345_t;
 /**
  * @struct adxl345_dev
  * @brief ADXL345 Device structure.
  */
 struct adxl345_dev {
+	device_t 	*dev;
 	/** Measurement range */
 	uint8_t		selected_range;
 	/** Enable/Disable Full Resolution */
 	uint8_t		full_resolution_set;
+#if (defined(COMM_TYPE)) && (COMM_TYPE == ADXL345_SPI_COMM)
+	device_gpio_control_fptr_t gpio_set_pin;
+    device_gpio_control_fptr_t gpio_reset_pin;
+#endif
 };
 
 /******************************************************************************/
 /************************ Functions Declarations ******************************/
 /******************************************************************************/
 
+/*! Initializes the device interface. */
+#if (defined(COMM_TYPE)) && (COMM_TYPE == ADXL345_SPI_COMM)
+DEVICE_INTF_RET_TYPE adxl362_interface_init(adxl345_t *adxl345, device_t *dev,
+								  device_gpio_control_fptr_t gpio_set_pin,
+								  device_gpio_control_fptr_t gpio_reset_pin);
+#else
+DEVICE_INTF_RET_TYPE adxl362_interface_init(adxl345_t *adxl345, device_t *dev);
+#endif
+
 /*! Reads the value of a register. */
-uint8_t adxl345_get_register_value(uint8_t register_address);
+uint8_t adxl345_get_register_value(adxl345_t *adxl345, uint8_t register_address);
 
 /*! Writes data into a register. */
 void adxl345_set_register_value(uint8_t register_address,
