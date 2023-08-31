@@ -1,3 +1,0 @@
-# IC Drivers
-
-Several IC manufacturers integrate their drivers with the MCU's peripheral driver library, which includes SPI, I2C, UART, and other necessary APIs, such as delay. As a result, migrating a project can be a time-consuming task. If we define the relevant MCU driver APIs that IC driver library will use, we only need to implement these APIs when migrating projects. This repository is inspired by [ad5940lib](https://github.com/analogdevicesinc/ad5940lib/blob/master/ad5940.h).
