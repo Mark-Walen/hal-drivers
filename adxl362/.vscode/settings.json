@@ -1,6 +1,0 @@
-{
-    "files.associations": {
-        "adxl362.h": "c",
-        "device.h": "c"
-    }
-}
