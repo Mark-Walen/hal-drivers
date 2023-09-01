@@ -29,7 +29,7 @@ SX126X_RET_TYPE sx126x_set_pins(sx126x_driver_t *sx126x_drv, device_gpio_typedef
 
     sx126x_driver = sx126x_drv->sx126x_driver;
 
-    sx126x_driver->intf_ptr = (void *)nss;
+    sx126x_driver->addr = (void *)nss;
     sx126x_drv->_busy = busy;
     return SX126X_OK;
 }
@@ -461,7 +461,7 @@ SX126X_RET_TYPE sx126x_transfer(sx126x_driver_t *sx126x_drv, uint8_t opCode, uin
     ret = sx126x_drv_null_ptr_check(sx126x_drv);
 
     dev = sx126x_drv->sx126x_driver;
-    nss = (device_gpio_typedef_t *)dev->intf_ptr;
+    nss = (device_gpio_typedef_t *)dev->addr;
     if (ret != SX126X_OK)
         return ret;
 
@@ -477,7 +477,7 @@ SX126X_RET_TYPE sx126x_transfer(sx126x_driver_t *sx126x_drv, uint8_t opCode, uin
 
 SX126X_RET_TYPE sx126x_drv_null_ptr_check(sx126x_driver_t *sx126x_drv)
 {
-    if (sx126x_drv == NULL || null_ptr_check(sx126x_drv->sx126x_driver) == DEVICE_E_NULL_PTR || sx126x_drv->sx126x_driver->intf_ptr == NULL || sx126x_drv->sx126x_driver->get_system_tick_count == NULL)
+    if (sx126x_drv == NULL || null_ptr_check(sx126x_drv->sx126x_driver) == DEVICE_E_NULL_PTR || sx126x_drv->sx126x_driver->addr == NULL || sx126x_drv->sx126x_driver->get_system_tick_count == NULL)
     {
         return SX126X_E_NULL_PTR;
     }

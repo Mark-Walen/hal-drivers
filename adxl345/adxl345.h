@@ -219,7 +219,7 @@ void adxl345_set_register_value(uint8_t register_address,
 				uint8_t register_value);
 
 /*! Init. the comm. peripheral and checks if the ADXL345 part is present. */
-int32_t adxl345_init(struct adxl345_dev **device);
+int32_t adxl345_init(adxl345_t *adxl345);
 
 /*! Free the resources allocated by adxl345_init(). */
 int32_t adxl345_remove(struct adxl345_dev *dev);
