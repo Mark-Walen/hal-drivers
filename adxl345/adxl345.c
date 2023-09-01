@@ -60,7 +60,7 @@ DEVICE_INTF_RET_TYPE adxl345_null_ptr_check(adxl345_t *adxl345)
 	if (adxl345 == NULL)
 #endif
     {
-        return DEVICE_E_NULL_PTR;
+        return DEVICE_E_NULLPTR;
     }
     return null_ptr_check(adxl345->dev);
 }
@@ -85,7 +85,7 @@ DEVICE_INTF_RET_TYPE adxl362_interface_init(adxl345_t *adxl345, device_t *dev)
 {
 	if (adxl345 == NULL || dev == NULL)
     {
-        return DEVICE_E_NULL_PTR;
+        return DEVICE_E_NULLPTR;
     }
 	adxl345->dev = dev;
 }
@@ -103,7 +103,7 @@ uint8_t adxl345_get_register_value(adxl345_t *adxl345, uint8_t register_address)
 	if (adxl345_null_ptr_check(adxl345) != DEVICE_OK) return;
 	uint8_t register_value = 0xff;
 	uint8_t data_buffer[2] = {0, 0};
-	device_t *dev = adxl362->dev;
+	device_t *dev = adxl345->dev;
 	int status = 0;
 
 	#if (defined(COMM_TYPE)) && (COMM_TYPE == ADXL345_SPI_COMM)
@@ -112,7 +112,7 @@ uint8_t adxl345_get_register_value(adxl345_t *adxl345, uint8_t register_address)
 		spi_transfer(data_buffer, data_buffer, 2);
 		register_value = data_buffer[1];
 	#else
-		status = adxl345->dev->write(&register_address, 1, adxl345->dev->fd);
+		status = dev->write(&register_address, 1, dev->fp);
 	#endif
 	return register_value;
 }
@@ -158,28 +158,18 @@ void adxl345_set_register_value(uint8_t register_address,
  *                               0 - I2C/SPI peripheral is initialized and
  *                                   ADXL345 part is present.
 *******************************************************************************/
-int32_t adxl345_init(struct adxl345_dev **device)
+int32_t adxl345_init(adxl345_t *adxl345)
 {
 	struct adxl345_dev *dev;
 	int32_t status = 0;
 
-	dev = (struct adxl345_dev *)malloc(sizeof(*dev));
-	if (!dev)
-		return -1;
+	adxl345_null_ptr_check(adxl345);
 
-	#if (defined(COMM_TYPE)) && (COMM_TYPE== ADXL345_SPI_COMM)
-		status = spi_init();
-	#else
-		status = i2c_init();
-	#endif
-
-	if (adxl345_get_register_value(ADXL345_DEVID) != ADXL345_ID)
+	if (adxl345_get_register_value(adxl345, ADXL345_DEVID) != ADXL345_ID)
 		status = -1;
 
 	dev->selected_range = 2; // Measurement Range: +/- 2g (reset default).
 	dev->full_resolution_set = 0;
-
-	*device = dev;
 
 	return status;
 }

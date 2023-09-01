@@ -42,54 +42,40 @@
 static int device_printf(const char *fmt, ...){ return 0; }
 
 DEVICE_INTF_RET_TYPE device_init(device_t *device,
-                                 device_read_fptr_t read,
-                                 device_write_fptr_t write,
-                                 device_delay_us_fptr_t delay_us,
-                                 device_printf_fptr_t println,
-                                 device_get_timestamp_fptr_t get_timestamp,
-                                 void *intf_ptr, void *fd)
+                                 platform_ioctl_fptr_t read,
+                                 platform_ioctl_fptr_t write,
+                                 void *addr, void *fp)
 {
     if (device == NULL)
     {
-        return DEVICE_E_NULL_PTR;
+        return DEVICE_E_NULLPTR;
     }
     
     device->read = read;
     device->write = write;
-    device->delay_us = delay_us;
-    if (println == NULL)
-    {
-        device->println = device_printf;
-    }
-    else
-    {
-        device->println = println;
-    }
-    
-    device->get_timestamp = get_timestamp;
-    device->intf_ptr = intf_ptr;
-    device->fd = fd;
+    device->addr = addr;
+    device->fp = fp;
 
     return null_ptr_check(device);
 }
 
-DEVICE_INTF_RET_TYPE device_interface_init(device_t *device, void *intf_ptr)
+DEVICE_INTF_RET_TYPE device_interface_init(device_t *device, void *addr)
 {
     DEVICE_INTF_RET_TYPE ret = DEVICE_OK;
 
-    if (intf_ptr == NULL)
+    if (addr == NULL)
     {
-        ret = DEVICE_E_NULL_PTR;
+        ret = DEVICE_E_NULLPTR;
     }
-    device->intf_ptr = intf_ptr;
+    device->addr = addr;
     return ret;
 }
 
 DEVICE_INTF_RET_TYPE device_deinit(device_t *device)
 {
-    if (device->intf_ptr)
+    if (device->addr)
     {
-        free(device->intf_ptr);
+        free(device->addr);
     }
     if (device)
     {
@@ -98,44 +84,14 @@ DEVICE_INTF_RET_TYPE device_deinit(device_t *device)
     return DEVICE_OK;
 }
 
-void device_check_rslt(const char api_name[], device_printf_fptr_t println, int8_t rslt)
-{
-    switch (rslt)
-    {
-        case DEVICE_OK:
-
-            /* Do nothing */
-            break;
-        case DEVICE_E_NULL_PTR:
-            println("API name [%s]  Error [%d] : Null pointer", api_name, rslt);
-            break;
-        case DEVICE_E_COM_FAIL:
-            println("API name [%s]  Error [%d] : Communication failure", api_name, rslt);
-            break;
-        case DEVICE_E_INVALID_LENGTH:
-            println("API name [%s]  Error [%d] : Incorrect length parameter", api_name, rslt);
-            break;
-        case DEVICE_E_NOT_FOUND:
-            println("API name [%s]  Error [%d] : Device not found", api_name, rslt);
-            break;
-        default:
-            println("API name [%s]  Error [%d] : Unknown error code", api_name, rslt);
-            break;
-    }
-}
-
 DEVICE_INTF_RET_TYPE null_ptr_check(const device_t *dev)
 {
     DEVICE_INTF_RET_TYPE rslt = DEVICE_OK;
 
-    if ((dev == NULL) || (dev->read == NULL) || (dev->write == NULL) || (dev->delay_us == NULL))
+    if ((dev == NULL) || (dev->read == NULL) || (dev->write == NULL))
     {
         /* Device structure pointer is not valid */
-        rslt = DEVICE_E_NULL_PTR;
-    }
-    else if (dev->get_timestamp == NULL || dev->println == NULL)
-    {
-        rslt = DEVICE_W_NULL_PTR;
+        rslt = DEVICE_E_NULLPTR;
     }
 
     return rslt;
@@ -151,29 +107,5 @@ DEVICE_INTF_RET_TYPE device_transfer(device_t *dev,
     uint8_t ret = DEVICE_OK;
     
     ret = null_ptr_check(dev);
-	if (ret != DEVICE_OK) return ret;
-    if (reg_addr != NULL && n_address != 0)
-    {
-        dev->intf_rslt = dev->write(reg_addr, 1, dev->intf_ptr);
-        if (dev->intf_rslt != DEVICE_OK)
-        {
-            ret = DEVICE_E_COM_FAIL;
-            return ret;
-        }
-    }
-
-    if (read)
-    {
-        dev->intf_rslt = dev->read(buffer, buffer_size, dev->intf_ptr);
-    }
-    else
-    {
-        dev->intf_rslt = dev->write(buffer, buffer_size, dev->intf_ptr);
-    }
-
-    if (dev->intf_rslt != DEVICE_OK)
-    {
-        ret = DEVICE_E_COM_FAIL;
-    }
     return ret;
 }

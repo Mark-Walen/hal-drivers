@@ -181,7 +181,7 @@ int8_t bme68x_set_regs(const uint8_t *reg_addr, const uint8_t *reg_data, uint32_
     int8_t rslt;
 
     device_t *dev = bme68x->dev;
-    device_gpio_typedef_t *nss = (device_gpio_typedef_t *) dev->intf_ptr;
+    device_gpio_typedef_t *nss = (device_gpio_typedef_t *) dev->addr;
 
     /* Length of the temporary buffer is 2*(length of register)*/
     uint8_t tmp_buff[BME68X_LEN_INTERLEAVE_BUFF] = { 0 };
@@ -217,12 +217,12 @@ int8_t bme68x_set_regs(const uint8_t *reg_addr, const uint8_t *reg_data, uint32_
         if (bme68x->intf == BME68X_SPI_INTF)
         {
             bme68x->gpio_reset_pin(nss->port, nss->pin);
-            bme68x->intf_rslt = dev->write(tmp_buff, 2 * len, dev->fd);
+            bme68x->intf_rslt = dev->write(tmp_buff, 2 * len, dev->fp);
             bme68x->gpio_set_pin(nss->port, nss->pin);
         }
         else
         {
-            bme68x->intf_rslt = dev->write(tmp_buff, 2 * len, dev->fd);
+            bme68x->intf_rslt = dev->write(tmp_buff, 2 * len, dev->fp);
         }
 
         if (dev->intf_rslt != 0)
@@ -250,7 +250,7 @@ int8_t bme68x_get_regs(uint8_t reg_addr, uint8_t *reg_data, uint32_t len, bme68x
 
     if (bme68x->intf == BME68X_SPI_INTF)
     {
-        device_gpio_typedef_t *nss = (device_gpio_typedef_t *) dev->intf_ptr;
+        device_gpio_typedef_t *nss = (device_gpio_typedef_t *) dev->addr;
         if(nss != NULL) return DEVICE_E_NULL_PTR;
         /* Set the memory page */
         rslt = set_mem_page(reg_addr, bme68x);
@@ -259,14 +259,14 @@ int8_t bme68x_get_regs(uint8_t reg_addr, uint8_t *reg_data, uint32_t len, bme68x
             reg_addr = reg_addr | BME68X_SPI_RD_MSK;
         }
         bme68x->gpio_reset_pin(nss->port, nss->pin);
-        bme68x->intf_rslt = dev->write(&reg_addr, 1, dev->fd);
-        bme68x->intf_rslt = dev->read(reg_data, len, dev->fd);
+        bme68x->intf_rslt = dev->write(&reg_addr, 1, dev->fp);
+        bme68x->intf_rslt = dev->read(reg_data, len, dev->fp);
         bme68x->gpio_set_pin(nss->port, nss->pin);
     }
     else
     {
-        bme68x->intf_rslt = dev->write(&reg_addr, 1, dev->fd);
-        bme68x->intf_rslt = dev->read(reg_data, len, dev->fd);
+        bme68x->intf_rslt = dev->write(&reg_addr, 1, dev->fp);
+        bme68x->intf_rslt = dev->read(reg_data, len, dev->fp);
     }
     if (bme68x->intf_rslt != 0)
     {
@@ -304,7 +304,7 @@ int8_t bme68x_soft_reset(bme68x_t *bme68x)
             if (rslt == DEVICE_OK)
             {
                 /* Wait for 5ms */
-                dev->delay_us(BME68X_PERIOD_RESET, dev->intf_ptr);
+                dev->delay_us(BME68X_PERIOD_RESET, dev->addr);
 
                 /* After reset get the memory page */
                 if (dev->intf == BME68X_SPI_INTF)
@@ -459,7 +459,7 @@ int8_t bme68x_set_op_mode(const uint8_t op_mode, bme68x_t *bme68x)
             {
                 tmp_pow_mode &= ~BME68X_MODE_MSK; /* Set to sleep */
                 rslt = bme68x_set_regs(&reg_addr, &tmp_pow_mode, 1, dev);
-                dev->delay_us(BME68X_PERIOD_POLL, dev->intf_ptr);
+                dev->delay_us(BME68X_PERIOD_POLL, dev->addr);
             }
         }
     } while ((pow_mode != BME68X_SLEEP_MODE) && (rslt == DEVICE_OK));
@@ -757,7 +757,7 @@ int8_t bme68x_selftest_check(const bme68x_t *bme68x)
         t_dev.write = dev->write;
         t_dev.intf = dev->intf;
         t_dev.delay_us = dev->delay_us;
-        t_dev.intf_ptr = dev->intf_ptr;
+        t_dev.addr = dev->addr;
 
         rslt = bme68x_init(&t_dev);
     }
@@ -783,7 +783,7 @@ int8_t bme68x_selftest_check(const bme68x_t *bme68x)
                 if (rslt == DEVICE_OK)
                 {
                     /* Wait for the measurement to complete */
-                    t_dev.delay_us(BME68X_HEATR_DUR1_DELAY, t_dev.intf_ptr);
+                    t_dev.delay_us(BME68X_HEATR_DUR1_DELAY, t_dev.addr);
                     rslt = bme68x_get_data(BME68X_FORCED_MODE, &data[0], &n_fields, &t_dev);
                     if (rslt == DEVICE_OK)
                     {
@@ -823,7 +823,7 @@ int8_t bme68x_selftest_check(const bme68x_t *bme68x)
                     if (rslt == DEVICE_OK)
                     {
                         /* Wait for the measurement to complete */
-                        t_dev.delay_us(BME68X_HEATR_DUR2_DELAY, t_dev.intf_ptr);
+                        t_dev.delay_us(BME68X_HEATR_DUR2_DELAY, t_dev.addr);
                         rslt = bme68x_get_data(BME68X_FORCED_MODE, &data[i], &n_fields, &t_dev);
                     }
                 }
@@ -1289,7 +1289,7 @@ static int8_t read_field_data(uint8_t index, struct bme68x_data *data, bme68x_t 
 
         if (rslt == DEVICE_OK)
         {
-            dev->delay_us(BME68X_PERIOD_POLL, dev->intf_ptr);
+            dev->delay_us(BME68X_PERIOD_POLL, dev->addr);
         }
 
         tries--;
@@ -1399,7 +1399,7 @@ static int8_t set_mem_page(uint8_t reg_addr, bme68x_t *bme68x)
         if (mem_page != dev->mem_page)
         {
             dev->mem_page = mem_page;
-            dev->intf_rslt = dev->read(BME68X_REG_MEM_PAGE | BME68X_SPI_RD_MSK, &reg, 1, dev->intf_ptr);
+            dev->intf_rslt = dev->read(BME68X_REG_MEM_PAGE | BME68X_SPI_RD_MSK, &reg, 1, dev->addr);
             if (dev->intf_rslt != 0)
             {
                 rslt = DEVICE_E_COM_FAIL;
@@ -1409,7 +1409,7 @@ static int8_t set_mem_page(uint8_t reg_addr, bme68x_t *bme68x)
             {
                 reg = reg & (~BME68X_MEM_PAGE_MSK);
                 reg = reg | (dev->mem_page & BME68X_MEM_PAGE_MSK);
-                dev->intf_rslt = dev->write(BME68X_REG_MEM_PAGE & BME68X_SPI_WR_MSK, &reg, 1, dev->intf_ptr);
+                dev->intf_rslt = dev->write(BME68X_REG_MEM_PAGE & BME68X_SPI_WR_MSK, &reg, 1, dev->addr);
                 if (dev->intf_rslt != 0)
                 {
                     rslt = DEVICE_E_COM_FAIL;
@@ -1431,7 +1431,7 @@ static int8_t get_mem_page(bme68x_t *bme68x)
     rslt = null_ptr_check(dev);
     if (rslt == DEVICE_OK)
     {
-        dev->intf_rslt = dev->read(BME68X_REG_MEM_PAGE | BME68X_SPI_RD_MSK, &reg, 1, dev->intf_ptr);
+        dev->intf_rslt = dev->read(BME68X_REG_MEM_PAGE | BME68X_SPI_RD_MSK, &reg, 1, dev->addr);
         if (dev->intf_rslt != 0)
         {
             rslt = DEVICE_E_COM_FAIL;

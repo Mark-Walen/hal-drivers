@@ -20,13 +20,13 @@ DEVICE_INTF_RET_TYPE w25qxx_read_id(w25qxx_handle_t *w25qxx)
     uint8_t ret = w25qxx_null_ptr_check(w25qxx);
     if (ret != DEVICE_OK) return ret;
     device_t *dev = w25qxx->dev;
-    device_gpio_typedef_t *nss = (device_gpio_typedef_t *) dev->intf_ptr;
+    device_gpio_typedef_t *nss = (device_gpio_typedef_t *) dev->addr;
     uint8_t tx_data[4] = {0x90, 0x00, 0x00, 0x00};
     uint8_t rx_data[2] = {0xFF, 0xFF};
 
     w25qxx->gpio_reset_pin(nss->port, nss->pin);
-    dev->write(tx_data, 4, dev->fd);
-    dev->read(rx_data, 2, dev->fd);
+    dev->write(tx_data, 4, dev->fp);
+    dev->read(rx_data, 2, dev->fp);
     w25qxx->gpio_set_pin(nss->port, nss->pin);
 
     w25qxx->dev->chip_id = ((rx_data[0] << 8) | rx_data[1]);

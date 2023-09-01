@@ -108,7 +108,7 @@ SX126X_RET_TYPE wake(sx126x_t lora)
 {
     sx126x_driver_t *sx126x_drv = lora.sx126x_drv;
     uint8_t ret = sx126x_drv_null_ptr_check(sx126x_drv);
-    device_gpio_typedef_t *nss = (device_gpio_typedef_t *) sx126x_drv->sx126x_driver->intf_ptr;
+    device_gpio_typedef_t *nss = (device_gpio_typedef_t *) sx126x_drv->sx126x_driver->addr;
     if (ret != SX126X_OK) return ret;
     
     sx126x_drv->gpio_set_pin(nss->port, nss->port);
