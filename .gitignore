@@ -1,4 +1,4 @@
-.vscode
+.vscode/
 *.o
 Driver_W25Qxx/
 LoRaRF-Arduino/
