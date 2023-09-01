@@ -45,13 +45,7 @@
 /********************************************************* */
 /*!             Header includes                           */
 /********************************************************* */
-#ifdef __KERNEL__
-#include <linux/types.h>
-#include <linux/kernel.h>
-#else
-#include <stdint.h>
-#include <stddef.h>
-#endif
+#include "platform.h"
 
 /********************************************************* */
 /*!               Common Macros                           */
@@ -87,21 +81,12 @@
 #endif
 #endif
 
-#ifndef DEVICE_INTF_RET_TYPE
-/**
- * DEVICE_INTF_RET_TYPE is the read/write interface return type which can be overwritten by the build system.
- * The default is set to int8_t.
- */
-#define DEVICE_INTF_RET_TYPE int
-#endif
+/* Device instance function common return values */
+#define DEVICE_COMMON_RET(NAME) COMMON_RET(NAME), \
+                                RET_ERROR(NAME, COM_FAIL), \
+                                RET_ERROR(NAME, NOT_FOUND)
 
-#ifndef DEVICE_TICK_COUNT_TYPE
-/**
- * DEVICE_TICK_COUNT_TYPE is the system tick count return type which can be overwritten by the build system.
- * The default type is set to uint32_t which is satified with most of embeded device.
- */
-#define DEVICE_TICK_COUNT_TYPE uint32_t
-#endif
+#define DEVICE_INTF_RET_TYPE PLATFORM_INTF_RET_TYPE
 
 #ifndef DEVICE_GPIO_CONTROL_RET_TYPE
 /**
@@ -111,77 +96,9 @@
 #define DEVICE_GPIO_CONTROL_RET_TYPE int
 #endif
 
-#ifndef DEVICE_GPIO_CONFIG_RET_TYPE
-/**
- * DEVICE_GPIO_CONTROL_RET_TYPE is the gpio control interface return type which can be overwritten by the build system.
- * The default is set to int8_t.
- */
-#define DEVICE_GPIO_CONFIG_RET_TYPE uint16_t
-#endif
-
-#ifndef DEVICE_GPIO_MODE_TYPE
-#define DEVICE_GPIO_MODE_TYPE       uint16_t
-#endif
 /********************************************************* */
 /*!               Function Pointers                       */
 /********************************************************* */
-
-/*!
- * @brief Bus communication function pointer which should be mapped to
- * the platform specific read functions of the user
- *
- * @param[in]     reg_addr : 8bit register address of the sensor
- * @param[out]    reg_data : Data from the specified address
- * @param[in]     length   : Length of the reg_data array
- * @param[in,out] intf_ptr : Void pointer that can enable the linking of descriptors
- *                           for interface related callbacks
- * @param[in, out] intf_handle : Interface handle
- * @retval 0 for Success
- * @retval Non-zero for Failure
- */
-typedef DEVICE_INTF_RET_TYPE (*device_read_fptr_t)(uint8_t *rx_buffer, uint32_t length, void *fd);
-
-/*!
- * @brief Bus communication function pointer which should be mapped to
- * the platform specific write functions of the user
- *
- * @param[out]    reg_data : Data to the specified address
- * @param[in]     length   : Length of the reg_data array
- * @param[in,out] fd : Void pointer that can enable the linking of descriptors
- *                           for interface related callbacks
- * @retval 0 for Success
- * @retval Non-zero for Failure
- *
- */
-typedef DEVICE_INTF_RET_TYPE (*device_write_fptr_t)(const uint8_t *tx_buffer, uint32_t length, void *fd);
-
-/*!
- * @brief Delay function pointer which should be mapped to
- * delay function of the user
- *
- * @param period The time period in microseconds
- * @param[in,out] intf_ptr : Void pointer that can enable the linking of descriptors
- *                           for interface related callbacks
- */
-typedef void (*device_delay_us_fptr_t)(uint32_t period);
-typedef DEVICE_GPIO_CONTROL_RET_TYPE (*device_gpio_control_fptr_t)(void *port, uint8_t pin);
-typedef DEVICE_GPIO_CONFIG_RET_TYPE (*device_gpio_config_fptr_t)(void *port, uint8_t pin);
-
-/*!
- * @brief Sytem tick count function pointer which should be mapped to
- * system tick count function of the user
- *
- * @return system
- */
-typedef DEVICE_TICK_COUNT_TYPE (*device_get_timestamp_fptr_t)(void);
-
-/*!
- * @brief Printf function pointer which should be mapped to
- * printf function of the user. For debug only.
- *a
- * @param[in] fmt : This is the string that contains the text to be written to uart.
- */
-typedef DEVICE_GPIO_CONTROL_RET_TYPE (*device_printf_fptr_t)(const char *fmt, ...);
 
 /*!
  * @brief generic device structure
@@ -193,39 +110,35 @@ typedef struct device_gpio_typedef device_gpio_typedef_t;
 /*!
  * @brief Interface selection Enumerations
  */
-typedef enum device_intf device_intf_t;
+typedef enum device_type device_type_t;
 typedef enum device_ret device_ret_t;
-
-enum device_intf
-{
-    /*! SPI interface */
-    SPI_INTF,
-    /*! I2C interface */
-    I2C_INTF
-};
 
 enum device_ret
 {
-    /* Success */
-    DEVICE_OK,
-
-    /* Null pointer which will not cause fatal error. */
-    DEVICE_W_NULL_PTR,
-
-    /* Unknow error */
-    DEVICE_ERROR,
-
-    /* Null pointer passed */
-    DEVICE_E_NULL_PTR,
-
-    /* Communication failure */
-    DEVICE_E_COM_FAIL,
-
-    /* Sensor not found */
-    DEVICE_E_NOT_FOUND,
+    DEVICE_COMMON_RET(DEVICE),
 
     /* Incorrect length parameter */
-    DEVICE_E_INVALID_LENGTH,
+    RET_ERROR(DEVICE, INVALID_LENGTH)
+};
+
+enum device_type
+{
+    GPIO,
+    SPI,
+    I2C,
+    UART
+};
+
+struct device_info
+{
+    /* Device name */
+    const char *name;
+
+    /* Device interface type */
+    const char *interface;
+
+    /* Device interface type. Check device_type_t for more details. */
+    device_type_t type;
 };
 
 struct device
@@ -233,41 +146,24 @@ struct device
     /* Chip Id */
     uint16_t chip_id;
 
-    /* device id to store i2c address or chip select pin */
-    uint8_t dev_id;
-
-    /*
+    /*!
      * The interface pointer is used to enable the user
      * to link their interface descriptors for reference during the
      * implementation of the read and write interfaces to the
      * hardware.
      */
-    void *intf_ptr;
-    void *fd;
+    void *fp;
 
+    /* Interface register address offset. GPIO pin number, SPI CS interface pointer, I2C slave address, etc. */
+    void *addr;
+
+    struct device_info *info;
+    
     /* Read function pointer */
-    device_read_fptr_t read;
+    platform_ioctl_fptr_t read;
 
     /* Write function pointer */
-    device_write_fptr_t write;
-
-    /* Delay function pointer */
-    device_delay_us_fptr_t delay_us;
-
-    /* System tick count function pointer */
-    device_get_timestamp_fptr_t get_timestamp;
-
-    /* Printf function pointer */
-    device_printf_fptr_t println;
-
-    /* To store interface pointer error */
-    DEVICE_INTF_RET_TYPE intf_rslt;
-};
-
-struct device_gpio_typedef
-{
-    void* port;
-    uint16_t pin;
+    platform_ioctl_fptr_t write;
 };
 
 /********************************************************* */
@@ -282,19 +178,16 @@ struct device_gpio_typedef
  *  @param[in] write        : Device register write function pointer
  *  @param[in] delay_us     : Delay function pointer
  *  @param[in] println      : Debug printf function pointer
- *  @param[in,out] intf_ptr : Interface pointer
+ *  @param[in,out] addr : Interface pointer
  *
  *  @return Status of execution
  *  @retval = DEVICE_INTF_RET_TYPE -> Success
  *  @retval != DEVICE_INTF_RET_TYPE  -> Failure Info
  */
 DEVICE_INTF_RET_TYPE device_init(device_t *device,
-                                 device_read_fptr_t read,
-                                 device_write_fptr_t write,
-                                 device_delay_us_fptr_t delay_us,
-                                 device_printf_fptr_t println,
-                                 device_get_timestamp_fptr_t get_timestamp,
-                                 void *intf_ptr, void *fd);
+                                 platform_ioctl_fptr_t read,
+                                 platform_ioctl_fptr_t write,
+                                 void *fp, void *addr);
 
 /*!
  *  @brief Deinitialize device.
@@ -307,29 +200,10 @@ DEVICE_INTF_RET_TYPE device_init(device_t *device,
  */
 DEVICE_INTF_RET_TYPE device_deinit(device_t *device);
 
-/*!
- *  @brief Function to select the interface between SPI and I2C.
- *
- *  @param[in,out] device   : Structure instance of device
- *  @param[in] intf         : Interface selection parameter
- *  @param[in,out] intf_ptr : Interface pointer
- *
- *  @return Status of execution
- *  @retval = DEVICE_INTF_RET_TYPE -> Success
- *  @retval != DEVICE_INTF_RET_TYPE  -> Failure Info
- */
-DEVICE_INTF_RET_TYPE device_interface_init(device_t *device, void *intf_ptr);
-
-/*!
- *  @brief Prints the execution status of the APIs.
- *
- *  @param[in] api_name : Name of the API whose execution status has to be printed.
- *  @param[in] println  : Function pointer for println debug message.
- *  @param[in] rslt     : Error code returned by the API whose execution status has to be printed.
- *
- *  @return void.
- */
-void device_check_rslt(const char api_name[], device_printf_fptr_t println, int8_t rslt);
+/**
+ * @brief Get device infomation. Name, 
+*/
+DEVICE_INTF_RET_TYPE get_device_info(device_t *device);
 
 /**
  *  @brief API is used to check the device for null pointers
