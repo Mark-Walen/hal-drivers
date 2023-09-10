@@ -203,8 +203,6 @@ typedef struct adxl362_dev adxl362_t;
  */
 struct adxl362_dev {
 	device_t *dev;
-	device_gpio_control_fptr_t gpio_set_pin;
-    device_gpio_control_fptr_t gpio_reset_pin;
 	/** Measurement Range: */
 	uint8_t		selected_range;
 };
@@ -214,9 +212,7 @@ struct adxl362_dev {
 /******************************************************************************/
 
 /*! Initializes the device interface. */
-DEVICE_INTF_RET_TYPE adxl362_interface_init(adxl362_t *adxl362, device_t *dev,
-								  device_gpio_control_fptr_t gpio_set_pin,
-								  device_gpio_control_fptr_t gpio_reset_pin);
+DEVICE_INTF_RET_TYPE adxl362_interface_init(adxl362_t *adxl362, device_t *dev);
 
 /*! Initializes the device */
 DEVICE_INTF_RET_TYPE adxl362_init(adxl362_t *adxl362);

@@ -50,11 +50,11 @@
 
 DEVICE_INTF_RET_TYPE adxl362_null_ptr_check(adxl362_t *adxl362)
 {
-    if (adxl362 == NULL || adxl362->gpio_set_pin == NULL || adxl362->gpio_reset_pin == NULL)
+    if (adxl362 == NULL)
     {
         return DEVICE_E_NULLPTR;
     }
-    return null_ptr_check(adxl362->dev);
+    return device_null_ptr_check(adxl362->dev);
 }
 
 /***************************************************************************//**
@@ -72,15 +72,13 @@ DEVICE_INTF_RET_TYPE adxl362_init(adxl362_t *adxl362)
 {
 	if (adxl362 == NULL) return DEVICE_E_NULLPTR;
 	
-	adxl362->dev->chip_id = 0;
+	config_device_info(adxl362->dev, "%n%i%c", "adxl345", SPI, 0xFF);
 
 	adxl362->selected_range = 2; // Measurement Range: +/- 2g (reset default).
 	return adxl362_get_id(adxl362);
 }
 
-DEVICE_INTF_RET_TYPE adxl362_interface_init(adxl362_t *adxl362, device_t *dev,
-					 device_gpio_control_fptr_t gpio_set_pin,
-					 device_gpio_control_fptr_t gpio_reset_pin)
+DEVICE_INTF_RET_TYPE adxl362_interface_init(adxl362_t *adxl362, device_t *dev)
 {
 	if (adxl362 == NULL || dev == NULL)
     {
@@ -88,8 +86,6 @@ DEVICE_INTF_RET_TYPE adxl362_interface_init(adxl362_t *adxl362, device_t *dev,
     }
 
 	adxl362->dev = dev;
-	adxl362->gpio_set_pin = gpio_set_pin;
-	adxl362->gpio_reset_pin = gpio_reset_pin;
 	return DEVICE_OK;
 }
 
@@ -97,11 +93,13 @@ DEVICE_INTF_RET_TYPE adxl362_get_id(adxl362_t *adxl362)
 {
 	uint8_t reg_value = 0;
 	uint8_t ret = adxl362_null_ptr_check(adxl362);
+	struct device_info info;
+
     if (ret != DEVICE_OK) return ret;
 
 	adxl362_get_register_value(adxl362, &reg_value, ADXL362_REG_PARTID, 1);
 	if((reg_value != ADXL362_PART_ID)) return DEVICE_E_NOT_FOUND;
-	adxl362->dev->chip_id = reg_value;
+	config_device_info(adxl362->dev, "%i", reg_value);
 
 	return DEVICE_OK;
 }
@@ -122,17 +120,21 @@ void adxl362_set_register_value(adxl362_t *adxl362, uint16_t register_value,
 	(void) bytes_number;
 	if (adxl362_null_ptr_check(adxl362) != DEVICE_OK) return;
 	
+	uint8_t gpio_level = 0;
 	uint8_t buffer[4] = {0, 0, 0, 0};
 	device_t *dev = adxl362->dev;
-	device_gpio_typedef_t *nss = (device_gpio_typedef_t *) dev->addr;
+	device_t *nss = (device_t *) dev->addr;
+	platform_t *mcu = get_platform();
 
 	buffer[0] = ADXL362_WRITE_REG;
 	buffer[1] = register_address;
 	buffer[2] = (register_value & 0x00FF);
 	buffer[3] = (register_value >> 8);
-	adxl362->gpio_reset_pin(nss->port, nss->pin);
-	dev->write(buffer, 4, dev->fp);
-	adxl362->gpio_set_pin(nss->port, nss->pin);
+	
+	mcu->gpio_ctrl(&gpio_level, 1, nss->fp, nss->addr);
+	dev->write(buffer, 4, dev->fp, dev->addr);
+	gpio_level = 1;
+	mcu->gpio_ctrl(&gpio_level, 1, nss->fp, nss->addr);
 }
 
 /***************************************************************************//**
@@ -148,19 +150,22 @@ void adxl362_set_register_value(adxl362_t *adxl362, uint16_t register_value,
 void adxl362_get_register_value(adxl362_t *adxl362, uint8_t *read_data,
 								uint8_t  register_address, uint8_t  bytes_number)
 {
-	if (adxl362_null_ptr_check(adxl362) != DEVICE_OK) return;
-
+	uint8_t gpio_level = 0;
 	uint8_t buffer[2];
 	device_t *dev = adxl362->dev;
-	device_gpio_typedef_t *nss = (device_gpio_typedef_t *) dev->addr;
+	device_t *nss = (device_t *) dev->addr;
+	platform_t *mcu = get_platform();
+
+	if (adxl362_null_ptr_check(adxl362) != DEVICE_OK) return;
 
 	buffer[0] = ADXL362_READ_REG;
 	buffer[1] = register_address;
 
-	adxl362->gpio_reset_pin(nss->port, nss->pin);
-	dev->write(buffer, 2, dev->fp);
-	dev->read(read_data, bytes_number, dev->fp);
-	adxl362->gpio_set_pin(nss->port, nss->pin);
+	mcu->gpio_ctrl(&gpio_level, 1, nss->fp, nss->addr);
+	dev->write(buffer, 2, dev->fp, dev->addr);
+	dev->read(read_data, bytes_number, dev->fp, dev->addr);
+	gpio_level = 1;
+	mcu->gpio_ctrl(&gpio_level, 1, nss->fp, nss->addr);
 }
 
 /***************************************************************************//**
@@ -179,13 +184,15 @@ void adxl362_get_fifo_value(adxl362_t *adxl362,
 	if (adxl362_null_ptr_check(adxl362) != DEVICE_OK || bytes_number > 512) return;
 	
 	uint8_t spi_cmd = ADXL362_WRITE_FIFO;
+	uint8_t gpio_level = 0;
 	device_t *dev = adxl362->dev;
-	device_gpio_typedef_t *nss = (device_gpio_typedef_t *) dev->addr;
+	device_t *nss = (device_t *) dev->addr;
 
-	adxl362->gpio_reset_pin(nss->port, nss->pin);
-	dev->write(&spi_cmd, 1, dev->fp);
-	dev->read(buffer, bytes_number, dev->fp);
-	adxl362->gpio_set_pin(nss->port, nss->pin);
+	platform->gpio_ctrl(&gpio_level, 1, nss->fp, nss->addr);
+	dev->write(&spi_cmd, 1, dev->fp, dev->addr);
+	dev->read(buffer, bytes_number, dev->fp, dev->addr);
+	gpio_level = 1;
+	platform->gpio_ctrl(&gpio_level, 1, nss->fp, nss->addr);
 	
 }
 
