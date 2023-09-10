@@ -36,7 +36,9 @@
  * @author     Mark Walen
  * @brief      A common device interface.
  */
+#include "stdio.h"
 #include <stdlib.h>
+#include <stdarg.h>
 #include "device.h"
 
 static int device_printf(const char *fmt, ...){ return 0; }
@@ -50,6 +52,7 @@ DEVICE_INTF_RET_TYPE device_init(device_t *device,
     {
         return DEVICE_E_NULLPTR;
     }
+    memset(device, 0, sizeof(device));
     
     device->read = read;
     device->write = write;
@@ -59,42 +62,84 @@ DEVICE_INTF_RET_TYPE device_init(device_t *device,
     return null_ptr_check(device);
 }
 
-DEVICE_INTF_RET_TYPE device_interface_init(device_t *device, void *addr)
+/**
+ * @brief Config device info: name
+*/
+DEVICE_INTF_RET_TYPE vconfig_device_info(device_t *device, const char *fmt, va_list args)
 {
-    DEVICE_INTF_RET_TYPE ret = DEVICE_OK;
+    struct device_info *info = NULL;
+    uint8_t free_flag = 0;
+    if (device == NULL) return DEVICE_E_NULLPTR;
 
-    if (addr == NULL)
+    if (device->info)
     {
-        ret = DEVICE_E_NULLPTR;
+        info = device->info;
     }
-    device->addr = addr;
-    return ret;
-}
+    else
+    {
+        info = malloc(sizeof(struct device_info));
+        if (info == NULL) return DEVICE_E_HEAP_OVERFLOW;
+        
+        memset(info, 0, sizeof(struct device_info));
+        device->info = info;
+        free_flag = 1;
+    }
 
-DEVICE_INTF_RET_TYPE device_deinit(device_t *device)
-{
-    if (device->addr)
+    while (*fmt)
     {
-        free(device->addr);
+        if (*fmt == '%') {
+            fmt++;
+            switch (*fmt) {
+                case 'n':
+                    info->name = va_arg(args, const char *);
+                    free_flag = 0;
+                    break;
+                case 'i':
+                    info->interface = va_arg(args, const char *);
+                    free_flag = 0;
+                    break;
+                case 'c':
+                    info->chip_id = va_arg(args, uint8_t);
+                    free_flag = 0;
+                    break;
+                default:
+                    // Handle unsupported format specifier
+                    break;
+            }
+        }
+        fmt++;
     }
-    if (device)
+    
+    if (free_flag)
     {
-        free(device);
+        device->info = NULL;
+        free(info);
     }
+    
     return DEVICE_OK;
 }
 
-DEVICE_INTF_RET_TYPE null_ptr_check(const device_t *dev)
+DEVICE_INTF_RET_TYPE config_device_info(device_t *device, const char *fmt, ...)
+{
+    va_list args;
+    va_start(args, fmt);
+    vconfig_device_info(device, fmt, args);
+    va_end(args);
+    
+    return DEVICE_OK;
+}
+
+DEVICE_INTF_RET_TYPE device_null_ptr_check(const device_t *dev)
 {
     DEVICE_INTF_RET_TYPE rslt = DEVICE_OK;
 
     if ((dev == NULL) || (dev->read == NULL) || (dev->write == NULL))
     {
         /* Device structure pointer is not valid */
-        rslt = DEVICE_E_NULLPTR;
+        return DEVICE_E_NULLPTR;
     }
 
-    return rslt;
+    return  platform_check_nullptr(platform);
 }
 
 DEVICE_INTF_RET_TYPE device_transfer(device_t *dev,

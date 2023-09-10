@@ -45,6 +45,7 @@
 /********************************************************* */
 /*!             Header includes                           */
 /********************************************************* */
+#include <string.h>
 #include "platform.h"
 
 /********************************************************* */
@@ -105,8 +106,6 @@
  */
 typedef struct device device_t;
 
-typedef struct device_gpio_typedef device_gpio_typedef_t;
-
 /*!
  * @brief Interface selection Enumerations
  */
@@ -118,12 +117,15 @@ enum device_ret
     DEVICE_COMMON_RET(DEVICE),
 
     /* Incorrect length parameter */
-    RET_ERROR(DEVICE, INVALID_LENGTH)
+    RET_ERROR(DEVICE, INVALID_LENGTH),
+
+    /* Insufficient heap space. */
+    RET_ERROR(DEVICE, HEAP_OVERFLOW)
 };
 
 enum device_type
 {
-    GPIO,
+    GPIO=1,
     SPI,
     I2C,
     UART
@@ -131,6 +133,9 @@ enum device_type
 
 struct device_info
 {
+    /* Chip Id */
+    uint16_t chip_id;
+
     /* Device name */
     const char *name;
 
@@ -143,9 +148,6 @@ struct device_info
 
 struct device
 {
-    /* Chip Id */
-    uint16_t chip_id;
-
     /*!
      * The interface pointer is used to enable the user
      * to link their interface descriptors for reference during the
@@ -189,21 +191,12 @@ DEVICE_INTF_RET_TYPE device_init(device_t *device,
                                  platform_ioctl_fptr_t write,
                                  void *fp, void *addr);
 
-/*!
- *  @brief Deinitialize device.
- *
- *  @param[in] device   : Structure instance of device
- *
- *  @return Status of execution
- *  @retval = DEVICE_INTF_RET_TYPE -> Success
- *  @retval != DEVICE_INTF_RET_TYPE  -> Failure
- */
-DEVICE_INTF_RET_TYPE device_deinit(device_t *device);
+DEVICE_INTF_RET_TYPE config_device_info(device_t *device, const char *name, ...);
 
 /**
- * @brief Get device infomation. Name, 
+ * @brief Get device infomation. Name, interface type and chip id.
 */
-DEVICE_INTF_RET_TYPE get_device_info(device_t *device);
+struct device_info *get_device_info(device_t *device);
 
 /**
  *  @brief API is used to check the device for null pointers
@@ -213,7 +206,7 @@ DEVICE_INTF_RET_TYPE get_device_info(device_t *device);
  *  @retval = DEVICE_INTF_RET_TYPE -> Success
  *  @retval != DEVICE_INTF_RET_TYPE  -> Failure Info
  */
-DEVICE_INTF_RET_TYPE null_ptr_check(const device_t *dev);
+DEVICE_INTF_RET_TYPE device_null_ptr_check(const device_t *dev);
 
 /**
  *  @brief A safe check wrapper device.read function

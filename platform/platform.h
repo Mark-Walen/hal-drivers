@@ -164,4 +164,4 @@ platform_ret_t init_platform(char *name,
                            platform_get_timestamp_fptr_t get_timestamp,
                            platform_delay_us_fptr_t delay_us,
                            platform_printf_fptr_t println);
-platform_ret_t platform_check_nullptr(void);
+platform_ret_t platform_check_nullptr(platform_t *platform);
