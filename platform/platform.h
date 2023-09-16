@@ -36,6 +36,8 @@
  * @author     Mark Walen
  * @brief      MCU platform support.
  */
+#ifndef __PLATFORM_H__
+#define __PLATFORM_H__
 #ifdef __KERNEL__
 #include <linux/types.h>
 #include <linux/kernel.h>
@@ -75,9 +77,9 @@
 #ifndef PLATFORM_PRINTF_RET_TYPE
 /**
  * PLATFORM_PRINTF_RET_TYPE is the system tick count return type which can be overwritten by the build system.
- * The default type is set to uint32_t which is satified with most of embeded device.
+ * The default type is set to int which is satified with most of embeded device.
  */
-#define PLATFORM_PRINTF_RET_TYPE uint32_t
+#define PLATFORM_PRINTF_RET_TYPE int
 #endif
 
 #ifndef PLATFORM_GPIO_CONTROL_RET_TYPE
@@ -146,13 +148,10 @@ struct platform
 
     /* Printf function pointer */
     platform_printf_fptr_t println;
-
-    /* GPIO write*/
-    platform_ioctl_fptr_t gpio_ctrl;
 };
 
 /* Standalone platform instance */
-static platform_t *platform = NULL;
+extern platform_t *platform;
 
 /**
  * @brief Get Platform instance
@@ -160,8 +159,10 @@ static platform_t *platform = NULL;
  * @return Standalone platform intance
 */
 platform_t *get_platform(void);
-platform_ret_t init_platform(char *name,
+platform_ret_t platform_init(char *name,
                            platform_get_timestamp_fptr_t get_timestamp,
                            platform_delay_us_fptr_t delay_us,
                            platform_printf_fptr_t println);
 platform_ret_t platform_check_nullptr(platform_t *platform);
+
+#endif
