@@ -18,13 +18,9 @@ typedef struct w25qxx_handle_s w25qxx_handle_t;
 struct w25qxx_handle_s
 {
     device_t *dev;
-    device_gpio_control_fptr_t gpio_set_pin;
-    device_gpio_control_fptr_t gpio_reset_pin;
 };
 
-DEVICE_INTF_RET_TYPE w25qxx_init(w25qxx_handle_t *w25qxx, device_t *dev,
-                                 device_gpio_control_fptr_t gpio_set_pin,
-                                 device_gpio_control_fptr_t gpio_reset_pin);
+DEVICE_INTF_RET_TYPE w25qxx_init(w25qxx_handle_t *w25qxx, device_t *dev);
 DEVICE_INTF_RET_TYPE w25qxx_read_id(w25qxx_handle_t *w25qxx);
 DEVICE_INTF_RET_TYPE w25qxx_null_ptr_check(w25qxx_handle_t *w25qxx);
 #endif
