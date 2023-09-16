@@ -191,7 +191,13 @@ DEVICE_INTF_RET_TYPE device_init(device_t *device,
                                  platform_ioctl_fptr_t write,
                                  void *fp, void *addr);
 
-DEVICE_INTF_RET_TYPE config_device_info(device_t *device, const char *name, ...);
+/**
+ * @brief Config device infomation: name, interface type, chip_id.
+ * @param[in, out] device : Structure instance of device
+ * @param[in] fmt : %n : set device name; %i : set device interface type; %c : set chip id. 
+ * @see struct device_info
+*/
+DEVICE_INTF_RET_TYPE config_device_info(device_t *device, const char *fmt, ...);
 
 /**
  * @brief Get device infomation. Name, interface type and chip id.

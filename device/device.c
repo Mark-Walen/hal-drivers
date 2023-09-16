@@ -41,25 +41,23 @@
 #include <stdarg.h>
 #include "device.h"
 
-static int device_printf(const char *fmt, ...){ return 0; }
-
 DEVICE_INTF_RET_TYPE device_init(device_t *device,
                                  platform_ioctl_fptr_t read,
                                  platform_ioctl_fptr_t write,
-                                 void *addr, void *fp)
+                                 void *fp, void *addr)
 {
     if (device == NULL)
     {
         return DEVICE_E_NULLPTR;
     }
-    memset(device, 0, sizeof(device));
+    memset(device, 0, sizeof(device_t));
     
     device->read = read;
     device->write = write;
     device->addr = addr;
     device->fp = fp;
 
-    return null_ptr_check(device);
+    return device_null_ptr_check(device);
 }
 
 /**
@@ -99,7 +97,7 @@ DEVICE_INTF_RET_TYPE vconfig_device_info(device_t *device, const char *fmt, va_l
                     free_flag = 0;
                     break;
                 case 'c':
-                    info->chip_id = va_arg(args, uint8_t);
+                    info->chip_id = (uint8_t) va_arg(args, int);
                     free_flag = 0;
                     break;
                 default:
@@ -131,8 +129,6 @@ DEVICE_INTF_RET_TYPE config_device_info(device_t *device, const char *fmt, ...)
 
 DEVICE_INTF_RET_TYPE device_null_ptr_check(const device_t *dev)
 {
-    DEVICE_INTF_RET_TYPE rslt = DEVICE_OK;
-
     if ((dev == NULL) || (dev->read == NULL) || (dev->write == NULL))
     {
         /* Device structure pointer is not valid */
@@ -151,6 +147,6 @@ DEVICE_INTF_RET_TYPE device_transfer(device_t *dev,
 {
     uint8_t ret = DEVICE_OK;
     
-    ret = null_ptr_check(dev);
+    ret = device_null_ptr_check(dev);
     return ret;
 }
