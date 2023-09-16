@@ -71,8 +71,6 @@ DEVICE_INTF_RET_TYPE adxl362_null_ptr_check(adxl362_t *adxl362)
 DEVICE_INTF_RET_TYPE adxl362_init(adxl362_t *adxl362)
 {
 	if (adxl362 == NULL) return DEVICE_E_NULLPTR;
-	
-	config_device_info(adxl362->dev, "%n%i%c", "adxl345", SPI, 0xFF);
 
 	adxl362->selected_range = 2; // Measurement Range: +/- 2g (reset default).
 	return adxl362_get_id(adxl362);
@@ -93,13 +91,13 @@ DEVICE_INTF_RET_TYPE adxl362_get_id(adxl362_t *adxl362)
 {
 	uint8_t reg_value = 0;
 	uint8_t ret = adxl362_null_ptr_check(adxl362);
-	struct device_info info;
 
     if (ret != DEVICE_OK) return ret;
 
 	adxl362_get_register_value(adxl362, &reg_value, ADXL362_REG_PARTID, 1);
+	platform->println("%.2x\n", reg_value);
 	if((reg_value != ADXL362_PART_ID)) return DEVICE_E_NOT_FOUND;
-	config_device_info(adxl362->dev, "%i", reg_value);
+	config_device_info(adxl362->dev, "%n%i%c", "adxl362", SPI, reg_value);
 
 	return DEVICE_OK;
 }
@@ -124,20 +122,19 @@ void adxl362_set_register_value(adxl362_t *adxl362, uint16_t register_value,
 	uint8_t buffer[4] = {0, 0, 0, 0};
 	device_t *dev = adxl362->dev;
 	device_t *nss = (device_t *) dev->addr;
-	platform_t *mcu = get_platform();
 
 	buffer[0] = ADXL362_WRITE_REG;
 	buffer[1] = register_address;
 	buffer[2] = (register_value & 0x00FF);
 	buffer[3] = (register_value >> 8);
 	
-	mcu->gpio_ctrl(&gpio_level, 1, nss->fp, nss->addr);
+	nss->write(&gpio_level, 1, nss->fp, nss->addr);
 	dev->write(buffer, 4, dev->fp, dev->addr);
 	gpio_level = 1;
-	mcu->gpio_ctrl(&gpio_level, 1, nss->fp, nss->addr);
+	nss->write(&gpio_level, 1, nss->fp, nss->addr);
 }
 
-/***************************************************************************//**
+/***************************************************************************
  * @brief Performs a burst read of a specified number of registers.
  *
  * @param dev              - The device structure.
@@ -154,21 +151,20 @@ void adxl362_get_register_value(adxl362_t *adxl362, uint8_t *read_data,
 	uint8_t buffer[2];
 	device_t *dev = adxl362->dev;
 	device_t *nss = (device_t *) dev->addr;
-	platform_t *mcu = get_platform();
 
 	if (adxl362_null_ptr_check(adxl362) != DEVICE_OK) return;
 
 	buffer[0] = ADXL362_READ_REG;
 	buffer[1] = register_address;
 
-	mcu->gpio_ctrl(&gpio_level, 1, nss->fp, nss->addr);
+	nss->write(&gpio_level, 1, nss->fp, nss->addr);
 	dev->write(buffer, 2, dev->fp, dev->addr);
 	dev->read(read_data, bytes_number, dev->fp, dev->addr);
 	gpio_level = 1;
-	mcu->gpio_ctrl(&gpio_level, 1, nss->fp, nss->addr);
+	nss->write(&gpio_level, 1, nss->fp, nss->addr);
 }
 
-/***************************************************************************//**
+/***************************************************************************
  * @brief Reads multiple bytes from the device's FIFO buffer.
  *
  * @param dev          - The device structure.
@@ -188,15 +184,15 @@ void adxl362_get_fifo_value(adxl362_t *adxl362,
 	device_t *dev = adxl362->dev;
 	device_t *nss = (device_t *) dev->addr;
 
-	platform->gpio_ctrl(&gpio_level, 1, nss->fp, nss->addr);
+	nss->write(&gpio_level, 1, nss->fp, nss->addr);
 	dev->write(&spi_cmd, 1, dev->fp, dev->addr);
 	dev->read(buffer, bytes_number, dev->fp, dev->addr);
 	gpio_level = 1;
-	platform->gpio_ctrl(&gpio_level, 1, nss->fp, nss->addr);
+	nss->write(&gpio_level, 1, nss->fp, nss->addr);
 	
 }
 
-/***************************************************************************//**
+/***************************************************************************
  * @brief Resets the device via SPI communication bus.
  *
  * @param dev - The device structure.
@@ -210,7 +206,7 @@ void adxl362_software_reset(adxl362_t *adxl362)
 				   1);
 }
 
-/***************************************************************************//**
+/***************************************************************************
  * @brief Places the device into standby/measure mode.
  *
  * @param dev      - The device structure.
@@ -253,7 +249,7 @@ void adxl362_set_wakeup_mode(adxl362_t *adxl362, uint8_t wakeup)
 				   1);
 }
 
-/***************************************************************************//**
+/***************************************************************************
  * @brief Selects the measurement range.
  *
  * @param dev - The device structure.
@@ -281,7 +277,7 @@ void adxl362_set_range(adxl362_t *adxl362,
 	adxl362->selected_range = (1 << g_range) * 2;
 }
 
-/***************************************************************************//**
+/***************************************************************************
  * @brief Selects the Output Data Rate of the device.
  *
  * @param dev      - The device structure.
@@ -310,7 +306,7 @@ void adxl362_set_output_rate(adxl362_t *adxl362, uint8_t out_rate)
 				   1);
 }
 
-/***************************************************************************//**
+/***************************************************************************
  * @brief Reads the 3-axis raw data from the accelerometer.
  *
  * @param dev - The device structure.
@@ -335,7 +331,7 @@ void adxl362_get_xyz(adxl362_t *adxl362,
 	*z = ((int16_t)xyz_values[5] << 8) + xyz_values[4];
 }
 
-/***************************************************************************//**
+/***************************************************************************
  * @brief Reads the 3-axis raw data from the accelerometer and converts it to g.
  *
  * @param dev - The device structure.
@@ -363,7 +359,7 @@ void adxl362_get_g_xyz(adxl362_t *adxl362,
 	*z /= (1000 / (adxl362->selected_range / 2));
 }
 
-/***************************************************************************//**
+/***************************************************************************
  * @brief Reads the temperature of the device.
  *
  * @param dev - The device structure.
@@ -385,7 +381,7 @@ float adxl362_read_temperature(adxl362_t *adxl362)
 	return temp_celsius;
 }
 
-/***************************************************************************//**
+/***************************************************************************
  * @brief Configures the FIFO feature.
  *
  * @param dev          - The device structure.
@@ -419,7 +415,7 @@ void adxl362_fifo_setup(adxl362_t *adxl362, uint8_t  mode,
 				   1);
 }
 
-/***************************************************************************//**
+/***************************************************************************
  * @brief Configures activity detection.
  *
  * @param dev         - The device structure.
@@ -461,7 +457,7 @@ void adxl362_setup_activity_detection(adxl362_t *adxl362, uint8_t  ref_or_abs,
 				   1);
 }
 
-/***************************************************************************//**
+/***************************************************************************
  * @brief Configures inactivity detection.
  *
  * @param dev         - The device structure.
