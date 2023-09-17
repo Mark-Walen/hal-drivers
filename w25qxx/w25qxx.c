@@ -18,7 +18,6 @@ DEVICE_INTF_RET_TYPE w25qxx_read_id(w25qxx_handle_t *w25qxx)
     uint8_t ret = w25qxx_null_ptr_check(w25qxx);
     device_t *dev = w25qxx->dev;
 	device_t *nss = (device_t *) dev->addr;
-	platform_t *mcu = get_platform();
     uint8_t tx_data[4] = {0x90, 0x00, 0x00, 0x00};
     uint8_t rx_data[2] = {0xFF, 0xFF};
     if (ret != DEVICE_OK) return ret;

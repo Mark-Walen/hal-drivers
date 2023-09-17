@@ -125,6 +125,7 @@ enum device_ret
 
 enum device_type
 {
+    UNKNOW=-1,
     GPIO=1,
     SPI,
     I2C,
@@ -200,9 +201,21 @@ DEVICE_INTF_RET_TYPE device_init(device_t *device,
 DEVICE_INTF_RET_TYPE config_device_info(device_t *device, const char *fmt, ...);
 
 /**
+ * @brief Get device type based on the given interface.
+ *
+ * This function takes an interface string and maps it to the corresponding
+ * device type using the predefined enum device_type. It returns the device
+ * type as an enum value.
+ *
+ * @param interface The interface string to map to a device type.
+ * @return The device type corresponding to the given interface.
+ */
+device_type_t get_device_type_from_interface(const char * interface);
+
+/**
  * @brief Get device infomation. Name, interface type and chip id.
 */
-struct device_info *get_device_info(device_t *device);
+struct device_info *get_device_info(device_t *device, const char *fmt, ...);
 
 /**
  *  @brief API is used to check the device for null pointers

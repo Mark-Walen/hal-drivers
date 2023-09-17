@@ -36,10 +36,34 @@
  * @author     Mark Walen
  * @brief      A common device interface.
  */
-#include "stdio.h"
 #include <stdlib.h>
 #include <stdarg.h>
 #include "device.h"
+
+#define INIT_REPETITION(_x) int _struct_rep = 0
+
+#define BEGIN_REPETITION(_x) do { _struct_rep--
+
+#define END_REPETITION(_x) } while(_struct_rep > 0)
+
+#define INC_REPETITION(_x) _struct_rep = _struct_rep * 10 + (*p - '0')
+
+#define CLEAR_REPETITION(_x) _struct_rep = 0
+
+static void *device_cpy(const void *src, size_t size)
+{
+    void *dest = NULL;
+    if (dest == NULL && size == 0)
+    {
+        return NULL;
+    }
+    if (dest == NULL)
+    {
+        dest = malloc(size);
+    }
+    memcpy(dest, src, size);
+    return dest;
+}
 
 DEVICE_INTF_RET_TYPE device_init(device_t *device,
                                  platform_ioctl_fptr_t read,
@@ -56,6 +80,7 @@ DEVICE_INTF_RET_TYPE device_init(device_t *device,
     device->write = write;
     device->addr = addr;
     device->fp = fp;
+    device->addr = addr;
 
     return device_null_ptr_check(device);
 }
@@ -94,6 +119,7 @@ DEVICE_INTF_RET_TYPE vconfig_device_info(device_t *device, const char *fmt, va_l
                     break;
                 case 'i':
                     info->interface = va_arg(args, const char *);
+                    info->type = get_device_type_from_interface(info->interface);
                     free_flag = 0;
                     break;
                 case 'c':
@@ -127,6 +153,91 @@ DEVICE_INTF_RET_TYPE config_device_info(device_t *device, const char *fmt, ...)
     return DEVICE_OK;
 }
 
+device_type_t get_device_type_from_interface(const char * interface)
+{
+    if (interface == NULL) {
+        return UNKNOW;
+    }
+
+    if (strncmp(interface, "GPIO", 4) == 0) {
+        // If the interface starts with "GPIO", it's recognized as GPIO.
+        return GPIO;
+    } else if (strncmp(interface, "SPI", 3) == 0) {
+        return SPI;
+    } else if (strncmp(interface, "I2C", 3) == 0) {
+        return I2C;
+    } else if (strncmp(interface, "UART", 4) == 0) {
+        return UART;
+    } else {
+        return UNKNOW;
+    }
+}
+
+DEVICE_INTF_RET_TYPE vget_device_info(device_t *device, const char *fmt, va_list args)
+{
+    char *name = NULL;
+    char *interface = NULL;
+    device_type_t *type = NULL;
+    uint16_t *chip_id = NULL;
+
+    struct device_info *info = NULL;
+    if (device == NULL || device->info == NULL) return DEVICE_E_NULLPTR;
+
+    if (device->info)
+    {
+        info = device->info;
+    }
+
+    while (*fmt)
+    {
+        if (*fmt != '%') {
+            *fmt++;
+            continue;
+        }
+        
+        fmt++;
+        switch (*fmt) {
+            case 'n':
+                name = va_arg(args, char *);
+                if (name == NULL) return DEVICE_E_NULLPTR;
+                strncpy(name, info->name, strlen(info->name));
+                break;
+            case 'i':
+                interface = va_arg(args, char *);
+                if (interface == NULL) return DEVICE_E_NULLPTR;
+                strncpy(interface, info->interface, strlen(info->interface));
+                break;
+            case 'c':
+                chip_id = va_arg(args, uint16_t *);
+                if (chip_id == NULL) return DEVICE_E_NULLPTR;
+                *chip_id = info->chip_id;
+                break;
+            case 't':
+                type = va_arg(args, device_type_t *);
+                if (type == NULL) return DEVICE_E_NULLPTR;
+                *type = info->type;
+            default:
+                // Handle unsupported format specifier
+                break;
+        }
+        fmt++;
+    }
+    
+    return DEVICE_OK;
+}
+
+/**
+ * @brief Get device infomation. Name, interface type and chip id.
+*/
+struct device_info *get_device_info(device_t *device, const char *fmt, ...)
+{
+    va_list args;
+
+    va_start(args, fmt);
+    vget_device_info(device, fmt, args);
+    va_end(args);
+}
+
 DEVICE_INTF_RET_TYPE device_null_ptr_check(const device_t *dev)
 {
     if ((dev == NULL) || (dev->read == NULL) || (dev->write == NULL))
@@ -148,5 +259,6 @@ DEVICE_INTF_RET_TYPE device_transfer(device_t *dev,
     uint8_t ret = DEVICE_OK;
     
     ret = device_null_ptr_check(dev);
+    device_get_interface_type(dev);
     return ret;
 }
