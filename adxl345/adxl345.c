@@ -45,9 +45,6 @@
 #include "adxl345/adxl345.h"
 #include "malloc.h"
 
-#define i2c_read(read_buf, length) i2c_master_receive(ADXL345_ADDRESS, read_buf, length)
-#define i2c_write(write_buf, length) i2c_master_transmit(ADXL345_ADDRESS, write_buf, length)
-
 /******************************************************************************/
 /************************ Functions Definitions *******************************/
 /******************************************************************************/
@@ -62,13 +59,11 @@ DEVICE_INTF_RET_TYPE adxl345_null_ptr_check(adxl345_t *adxl345)
     {
         return DEVICE_E_NULLPTR;
     }
-    return null_ptr_check(adxl345->dev);
+    return device_null_ptr_check(adxl345->dev);
 }
 
-#if (defined(COMM_TYPE)) && (COMM_TYPE == ADXL345_SPI_COMM)
-DEVICE_INTF_RET_TYPE adxl362_interface_init(adxl345_t *adxl345, device_t *dev,
-								  device_gpio_control_fptr_t gpio_set_pin,
-								  device_gpio_control_fptr_t gpio_reset_pin)
+#if (defined(ADXL345_COMM_TYPE)) && (ADXL345_COMM_TYPE == ADXL345_SPI_COMM)
+DEVICE_INTF_RET_TYPE adxl345_interface_init(adxl345_t *adxl345, device_t *dev)
 {
 	if (adxl345 == NULL || dev == NULL)
     {
@@ -76,18 +71,17 @@ DEVICE_INTF_RET_TYPE adxl362_interface_init(adxl345_t *adxl345, device_t *dev,
     }
 
 	adxl345->dev = dev;
-	adxl345->gpio_set_pin = gpio_set_pin;
-	adxl345->gpio_reset_pin = gpio_reset_pin;
 	return DEVICE_OK;
 }
 #else
-DEVICE_INTF_RET_TYPE adxl362_interface_init(adxl345_t *adxl345, device_t *dev)
+DEVICE_INTF_RET_TYPE adxl345_interface_init(adxl345_t *adxl345, device_t *dev)
 {
 	if (adxl345 == NULL || dev == NULL)
     {
         return DEVICE_E_NULLPTR;
     }
 	adxl345->dev = dev;
+	return DEVICE_OK;
 }
 #endif
 
@@ -100,19 +94,24 @@ DEVICE_INTF_RET_TYPE adxl362_interface_init(adxl345_t *adxl345, device_t *dev)
 *******************************************************************************/
 uint8_t adxl345_get_register_value(adxl345_t *adxl345, uint8_t register_address)
 {
-	if (adxl345_null_ptr_check(adxl345) != DEVICE_OK) return;
+	if (adxl345_null_ptr_check(adxl345) != DEVICE_OK) return 0;
 	uint8_t register_value = 0xff;
-	uint8_t data_buffer[2] = {0, 0};
 	device_t *dev = adxl345->dev;
 	int status = 0;
 
-	#if (defined(COMM_TYPE)) && (COMM_TYPE == ADXL345_SPI_COMM)
-		data_buffer[0] = ADXL345_SPI_READ | register_address;
-		data_buffer[1] = 0;
-		spi_transfer(data_buffer, data_buffer, 2);
-		register_value = data_buffer[1];
+	#if (defined(ADXL345_COMM_TYPE)) && (ADXL345_COMM_TYPE == ADXL345_SPI_COMM)
+		uint8_t gpio_level = 0;
+		device_t *nss = (device_t *) dev->addr;
+		register_address = ADXL345_SPI_READ | register_address;
+		
+		nss->write(&gpio_level, 1, nss->fp, nss->addr);
+		dev->write(&register_address, 1, dev->fp, dev->addr);
+		dev->read(&register_value, 1, dev->fp, dev->addr);
+		gpio_level = 1;
+		nss->write(&gpio_level, 1, nss->fp, nss->addr);
 	#else
-		status = dev->write(&register_address, 1, dev->fp);
+		status = dev->write(&register_address, 2, dev->fp, dev->addr);
+		status = dev->read(&register_value, 1, dev->fp, dev->addr);
 	#endif
 	return register_value;
 }
@@ -125,22 +124,28 @@ uint8_t adxl345_get_register_value(adxl345_t *adxl345, uint8_t register_address)
  *
  * @return None.
 *******************************************************************************/
-void adxl345_set_register_value(uint8_t register_address,
-				uint8_t register_value)
+void adxl345_set_register_value(adxl345_t *adxl345,
+								uint8_t register_address,
+								uint8_t register_value)
 {
 	uint8_t data_buffer[2] = {0, 0};
+	device_t *dev = adxl345->dev;
 
-	#if (defined(COMM_TYPE)) && (COMM_TYPE== ADXL345_SPI_COMM)
+	#if (defined(ADXL345_COMM_TYPE)) && (ADXL345_COMM_TYPE== ADXL345_SPI_COMM)
+		uint8_t gpio_level = 0;
+		device_t *nss = (device_t *) dev->addr;
 		data_buffer[0] = ADXL345_SPI_WRITE | register_address;
 		data_buffer[1] = register_value;
-		spi_transfer(data_buffer,
-					 data_buffer,
-					 2);
+		
+		nss->write(&gpio_level, 1, nss->fp, nss->addr);
+		dev->write(&register_address, 1, dev->fp, dev->addr);
+		dev->read(&register_value, 1, dev->fp, dev->addr);
+		gpio_level = 1;
+		nss->write(&gpio_level, 1, nss->fp, nss->addr);
 	#else
 		data_buffer[0] = register_address;
 		data_buffer[1] = register_value;
-		i2c_write(data_buffer,        // Received data.
-				2);                  // Number of bytes to read.
+		dev->write(data_buffer, 2, dev->fp, dev->addr);
 	#endif
 }
 
@@ -160,16 +165,16 @@ void adxl345_set_register_value(uint8_t register_address,
 *******************************************************************************/
 int32_t adxl345_init(adxl345_t *adxl345)
 {
-	struct adxl345_dev *dev;
 	int32_t status = 0;
 
 	adxl345_null_ptr_check(adxl345);
 
 	if (adxl345_get_register_value(adxl345, ADXL345_DEVID) != ADXL345_ID)
-		status = -1;
+		status = DEVICE_E_NOT_FOUND;
+	config_device_info(adxl345->dev, "%n%i%c", "adxl345", "I2C", ADXL345_ID);
 
-	dev->selected_range = 2; // Measurement Range: +/- 2g (reset default).
-	dev->full_resolution_set = 0;
+	adxl345->selected_range = 2; // Measurement Range: +/- 2g (reset default).
+	adxl345->full_resolution_set = 0;
 
 	return status;
 }
@@ -181,19 +186,19 @@ int32_t adxl345_init(adxl345_t *adxl345)
  *
  * @return ret - The result of the remove procedure.
 *******************************************************************************/
-int32_t adxl345_remove(struct adxl345_dev *dev)
+int32_t adxl345_remove(adxl345_t *adxl345)
 {
-	int32_t ret;
+	// int32_t ret;
 
-	#if (defined(COMM_TYPE)) && (COMM_TYPE== ADXL345_SPI_COMM)
-		ret = spi_remove();
-	#else
-		ret = i2c_remove();
-	#endif
+	// #if (defined(COMM_TYPE)) && (COMM_TYPE== ADXL345_SPI_COMM)
+	// 	ret = spi_remove();
+	// #else
+	// 	ret = i2c_remove();
+	// #endif
 
-	free(dev);
+	// free(adxl345);
 
-	return ret;
+	return 0;
 }
 
 /***************************************************************************//**
@@ -205,15 +210,15 @@ int32_t adxl345_remove(struct adxl345_dev *dev)
  *
  * @return None.
 *******************************************************************************/
-void adxl345_set_power_mode(uint8_t pwr_mode)
+void adxl345_set_power_mode(adxl345_t *adxl345, uint8_t pwr_mode)
 {
 	uint8_t old_power_ctl = 0;
 	uint8_t new_power_ctl = 0;
 
-	old_power_ctl = adxl345_get_register_value(ADXL345_POWER_CTL);
+	old_power_ctl = adxl345_get_register_value(adxl345, ADXL345_POWER_CTL);
 	new_power_ctl = old_power_ctl & ~ADXL345_PCTL_MEASURE;
 	new_power_ctl = new_power_ctl | (pwr_mode * ADXL345_PCTL_MEASURE);
-	adxl345_set_register_value(ADXL345_POWER_CTL,  new_power_ctl);
+	adxl345_set_register_value(adxl345, ADXL345_POWER_CTL,  new_power_ctl);
 }
 
 /***************************************************************************//**
@@ -225,38 +230,39 @@ void adxl345_set_power_mode(uint8_t pwr_mode)
  *
  * @return None.
 *******************************************************************************/
-void adxl345_get_xyz(int16_t* x,
-		     int16_t* y,
-		     int16_t* z)
+void adxl345_get_xyz(adxl345_t *adxl345,
+					 int16_t* x,
+					 int16_t* y,
+					 int16_t* z)
 {
 	uint8_t first_reg_address = ADXL345_DATAX0;
 	uint8_t read_buffer[7]    = {0, 0, 0, 0, 0, 0, 0};
+	device_t *dev = adxl345->dev;
 
-	#if (defined(COMM_TYPE)) && (COMM_TYPE== ADXL345_SPI_COMM)
+	#if (defined(ADXL345_COMM_TYPE)) && (ADXL345_COMM_TYPE == ADXL345_SPI_COMM)
+		uint8_t gpio_level = 0
 		read_buffer[0] = ADXL345_SPI_READ |
 				 ADXL345_SPI_MB |
 				 first_reg_address;
+		
+		nss->write(&gpio_level, 1, nss->fp, nss->addr);
+		dev->write(read_buffer, 7, dev->fp, dev->addr);
+		dev->read(&register_value, 1, dev->fp, dev->addr);
+		gpio_level = 1;
+		nss->write(&gpio_level, 1, nss->fp, nss->addr);
 		spi_transfer(read_buffer,
 					 read_buffer,
 					 7);
-		/* x = ((ADXL345_DATAX1) << 8) + ADXL345_DATAX0 */
-		*x = ((int16_t)read_buffer[2] << 8) + read_buffer[1];
-		/* y = ((ADXL345_DATAY1) << 8) + ADXL345_DATAY0 */
-		*y = ((int16_t)read_buffer[4] << 8) + read_buffer[3];
-		/* z = ((ADXL345_DATAZ1) << 8) + ADXL345_DATAZ0 */
-		*z = ((int16_t)read_buffer[6] << 8) + read_buffer[5];
 	#else
-		i2c_write(&first_reg_address, // Transmission data.
-				1);                  // Number of bytes to write.
-		i2c_read(read_buffer,         // Received data.
-			       6);                   // Number of bytes to read.
-		/* x = ((ADXL345_DATAX1) << 8) + ADXL345_DATAX0 */
-		*x = ((int16_t)read_buffer[1] << 8) + read_buffer[0];
-		/* y = ((ADXL345_DATAY1) << 8) + ADXL345_DATAY0 */
-		*y = ((int16_t)read_buffer[3] << 8) + read_buffer[2];
-		/* z = ((ADXL345_DATAZ1) << 8) + ADXL345_DATAZ0 */
-		*z = ((int16_t)read_buffer[5] << 8) + read_buffer[4];
+		dev->write(&first_reg_address, 1, dev->fp, dev->addr);
+		dev->read(read_buffer + 1, 6, dev->fp, dev->addr);
 	#endif
+	/* x = ((ADXL345_DATAX1) << 8) + ADXL345_DATAX0 */
+	*x = ((int16_t)read_buffer[2] << 8) + read_buffer[1];
+	/* y = ((ADXL345_DATAY1) << 8) + ADXL345_DATAY0 */
+	*y = ((int16_t)read_buffer[4] << 8) + read_buffer[3];
+	/* z = ((ADXL345_DATAZ1) << 8) + ADXL345_DATAZ0 */
+	*z = ((int16_t)read_buffer[6] << 8) + read_buffer[5];
 }
 
 /***************************************************************************//**
@@ -268,7 +274,7 @@ void adxl345_get_xyz(int16_t* x,
  *
  * @return None.
 *******************************************************************************/
-void adxl345_get_g_xyz(struct adxl345_dev *dev,
+void adxl345_get_g_xyz(adxl345_t *adxl345,
 			    float* x,
 		        float* y,
 		        float* z)
@@ -277,13 +283,13 @@ void adxl345_get_g_xyz(struct adxl345_dev *dev,
 	int16_t y_data = 0;  // Y-axis's output data.
 	int16_t z_data = 0;  // Z-axis's output data.
 
-	adxl345_get_xyz(&x_data, &y_data, &z_data);
-	*x = (float)(dev->full_resolution_set ? (x_data * ADXL345_SCALE_FACTOR) :
-		     (x_data * ADXL345_SCALE_FACTOR * (dev->selected_range >> 1)));
-	*y = (float)(dev->full_resolution_set ? (y_data * ADXL345_SCALE_FACTOR) :
-		     (y_data * ADXL345_SCALE_FACTOR * (dev->selected_range >> 1)));
-	*z = (float)(dev->full_resolution_set ? (z_data * ADXL345_SCALE_FACTOR) :
-		     (z_data * ADXL345_SCALE_FACTOR * (dev->selected_range >> 1)));
+	adxl345_get_xyz(adxl345, &x_data, &y_data, &z_data);
+	*x = (float)(adxl345->full_resolution_set ? (x_data * ADXL345_SCALE_FACTOR) :
+		     (x_data * ADXL345_SCALE_FACTOR * (adxl345->selected_range >> 1)));
+	*y = (float)(adxl345->full_resolution_set ? (y_data * ADXL345_SCALE_FACTOR) :
+		     (y_data * ADXL345_SCALE_FACTOR * (adxl345->selected_range >> 1)));
+	*z = (float)(adxl345->full_resolution_set ? (z_data * ADXL345_SCALE_FACTOR) :
+		     (z_data * ADXL345_SCALE_FACTOR * (adxl345->selected_range >> 1)));
 }
 
 /***************************************************************************//**
@@ -313,13 +319,14 @@ void adxl345_get_g_xyz(struct adxl345_dev *dev,
  *
  * @return None.
 *******************************************************************************/
-void adxl345_set_tap_detection(uint8_t tap_type,
-			       uint8_t tap_axes,
-			       uint8_t tap_dur,
-			       uint8_t tap_latent,
-			       uint8_t tap_window,
-			       uint8_t tap_thresh,
-			       uint8_t tap_int)
+void adxl345_set_tap_detection(adxl345_t *adxl345, 
+							   uint8_t tap_type,
+							   uint8_t tap_axes,
+							   uint8_t tap_dur,
+							   uint8_t tap_latent,
+							   uint8_t tap_window,
+							   uint8_t tap_thresh,
+							   uint8_t tap_int)
 {
 	uint8_t old_tap_axes = 0;
 	uint8_t new_tap_axes = 0;
@@ -328,26 +335,26 @@ void adxl345_set_tap_detection(uint8_t tap_type,
 	uint8_t old_int_enable = 0;
 	uint8_t new_int_enable = 0;
 
-	old_tap_axes = adxl345_get_register_value(ADXL345_TAP_AXES);
+	old_tap_axes = adxl345_get_register_value(adxl345, ADXL345_TAP_AXES);
 	new_tap_axes = old_tap_axes & ~(ADXL345_TAP_X_EN |
 					ADXL345_TAP_Y_EN |
 					ADXL345_TAP_Z_EN);
 	new_tap_axes = new_tap_axes | tap_axes;
-	adxl345_set_register_value(ADXL345_TAP_AXES, new_tap_axes);
-	adxl345_set_register_value(ADXL345_DUR, tap_dur);
-	adxl345_set_register_value(ADXL345_LATENT, tap_latent);
-	adxl345_set_register_value(ADXL345_WINDOW, tap_window);
-	adxl345_set_register_value( ADXL345_THRESH_TAP, tap_thresh);
-	old_int_map = adxl345_get_register_value(ADXL345_INT_MAP);
+	adxl345_set_register_value(adxl345, ADXL345_TAP_AXES, new_tap_axes);
+	adxl345_set_register_value(adxl345, ADXL345_DUR, tap_dur);
+	adxl345_set_register_value(adxl345, ADXL345_LATENT, tap_latent);
+	adxl345_set_register_value(adxl345, ADXL345_WINDOW, tap_window);
+	adxl345_set_register_value(adxl345, ADXL345_THRESH_TAP, tap_thresh);
+	old_int_map = adxl345_get_register_value(adxl345, ADXL345_INT_MAP);
 	new_int_map = old_int_map &
 		      ~(ADXL345_SINGLE_TAP | ADXL345_DOUBLE_TAP);
 	new_int_map = new_int_map | tap_int;
-	adxl345_set_register_value(ADXL345_INT_MAP, new_int_map);
-	old_int_enable = adxl345_get_register_value(ADXL345_INT_ENABLE);
+	adxl345_set_register_value(adxl345, ADXL345_INT_MAP, new_int_map);
+	old_int_enable = adxl345_get_register_value(adxl345, ADXL345_INT_ENABLE);
 	new_int_enable = old_int_enable &
 			 ~(ADXL345_SINGLE_TAP | ADXL345_DOUBLE_TAP);
 	new_int_enable = new_int_enable | tap_type;
-	adxl345_set_register_value(ADXL345_INT_ENABLE, new_int_enable);
+	adxl345_set_register_value(adxl345, ADXL345_INT_ENABLE, new_int_enable);
 }
 
 /***************************************************************************//**
@@ -373,12 +380,13 @@ void adxl345_set_tap_detection(uint8_t tap_type,
  *
  * @return None.
 *******************************************************************************/
-void adxl345_set_activity_detection(uint8_t act_on_off,
-				    uint8_t act_axes,
-				    uint8_t act_ac_dc,
-				    uint8_t act_thresh,
-				    uint8_t act_int)
-{
+void adxl345_set_activity_detection(adxl345_t *adxl345,
+									uint8_t act_on_off,
+									uint8_t act_axes,
+									uint8_t act_ac_dc,
+									uint8_t act_thresh,
+									uint8_t act_int)
+				{
 	uint8_t old_act_inact_ctl = 0;
 	uint8_t new_act_inact_ctl = 0;
 	uint8_t old_int_map = 0;
@@ -386,22 +394,22 @@ void adxl345_set_activity_detection(uint8_t act_on_off,
 	uint8_t old_int_enable = 0;
 	uint8_t new_int_enable = 0;
 
-	old_act_inact_ctl = adxl345_get_register_value(ADXL345_INT_ENABLE);
+	old_act_inact_ctl = adxl345_get_register_value(adxl345, ADXL345_INT_ENABLE);
 	new_act_inact_ctl = old_act_inact_ctl & ~(ADXL345_ACT_ACDC |
 			    ADXL345_ACT_X_EN |
 			    ADXL345_ACT_Y_EN |
 			    ADXL345_ACT_Z_EN);
 	new_act_inact_ctl = new_act_inact_ctl | (act_ac_dc | act_axes);
-	adxl345_set_register_value(ADXL345_ACT_INACT_CTL, new_act_inact_ctl);
-	adxl345_set_register_value(ADXL345_THRESH_ACT, act_thresh);
-	old_int_map = adxl345_get_register_value(ADXL345_INT_MAP);
+	adxl345_set_register_value(adxl345, ADXL345_ACT_INACT_CTL, new_act_inact_ctl);
+	adxl345_set_register_value(adxl345, ADXL345_THRESH_ACT, act_thresh);
+	old_int_map = adxl345_get_register_value(adxl345, ADXL345_INT_MAP);
 	new_int_map = old_int_map & ~(ADXL345_ACTIVITY);
 	new_int_map = new_int_map | act_int;
-	adxl345_set_register_value(ADXL345_INT_MAP, new_int_map);
-	old_int_enable = adxl345_get_register_value(ADXL345_INT_ENABLE);
+	adxl345_set_register_value(adxl345, ADXL345_INT_MAP, new_int_map);
+	old_int_enable = adxl345_get_register_value(adxl345, ADXL345_INT_ENABLE);
 	new_int_enable = old_int_enable & ~(ADXL345_ACTIVITY);
 	new_int_enable = new_int_enable | (ADXL345_ACTIVITY * act_on_off);
-	adxl345_set_register_value(ADXL345_INT_ENABLE, new_int_enable);
+	adxl345_set_register_value(adxl345, ADXL345_INT_ENABLE, new_int_enable);
 }
 
 /***************************************************************************//**
@@ -428,12 +436,13 @@ void adxl345_set_activity_detection(uint8_t act_on_off,
  *
  * @return None.
 *******************************************************************************/
-void adxl345_set_inactivity_detection(uint8_t inact_on_off,
-				      uint8_t inact_axes,
-				      uint8_t inact_ac_dc,
-				      uint8_t inact_thresh,
-				      uint8_t inact_time,
-				      uint8_t inact_int)
+void adxl345_set_inactivity_detection(adxl345_t *adxl345,
+									  uint8_t inact_on_off,
+				      				  uint8_t inact_axes,
+				      				  uint8_t inact_ac_dc,
+				      				  uint8_t inact_thresh,
+				      				  uint8_t inact_time,
+				      				  uint8_t inact_int)
 {
 	uint8_t old_act_inact_ctl = 0;
 	uint8_t new_act_inact_ctl = 0;
@@ -442,23 +451,23 @@ void adxl345_set_inactivity_detection(uint8_t inact_on_off,
 	uint8_t old_int_enable = 0;
 	uint8_t new_int_enable = 0;
 
-	old_act_inact_ctl = adxl345_get_register_value(ADXL345_INT_ENABLE);
+	old_act_inact_ctl = adxl345_get_register_value(adxl345, ADXL345_INT_ENABLE);
 	new_act_inact_ctl = old_act_inact_ctl & ~(ADXL345_INACT_ACDC |
 			    ADXL345_INACT_X_EN |
 			    ADXL345_INACT_Y_EN |
 			    ADXL345_INACT_Z_EN);
 	new_act_inact_ctl = new_act_inact_ctl | (inact_ac_dc | inact_axes);
-	adxl345_set_register_value(ADXL345_ACT_INACT_CTL, new_act_inact_ctl);
-	adxl345_set_register_value(ADXL345_THRESH_INACT, inact_thresh);
-	adxl345_set_register_value(ADXL345_TIME_INACT, inact_time);
-	old_int_map = adxl345_get_register_value(ADXL345_INT_MAP);
+	adxl345_set_register_value(adxl345, ADXL345_ACT_INACT_CTL, new_act_inact_ctl);
+	adxl345_set_register_value(adxl345, ADXL345_THRESH_INACT, inact_thresh);
+	adxl345_set_register_value(adxl345, ADXL345_TIME_INACT, inact_time);
+	old_int_map = adxl345_get_register_value(adxl345, ADXL345_INT_MAP);
 	new_int_map = old_int_map & ~(ADXL345_INACTIVITY);
 	new_int_map = new_int_map | inact_int;
-	adxl345_set_register_value(ADXL345_INT_MAP, new_int_map);
-	old_int_enable = adxl345_get_register_value(ADXL345_INT_ENABLE);
+	adxl345_set_register_value(adxl345, ADXL345_INT_MAP, new_int_map);
+	old_int_enable = adxl345_get_register_value(adxl345, ADXL345_INT_ENABLE);
 	new_int_enable = old_int_enable & ~(ADXL345_INACTIVITY);
 	new_int_enable = new_int_enable | (ADXL345_INACTIVITY * inact_on_off);
-	adxl345_set_register_value(ADXL345_INT_ENABLE, new_int_enable);
+	adxl345_set_register_value(adxl345, ADXL345_INT_ENABLE, new_int_enable);
 }
 
 /***************************************************************************//**
@@ -478,26 +487,27 @@ void adxl345_set_inactivity_detection(uint8_t inact_on_off,
  *
  * @return None.
 *******************************************************************************/
-void adxl345_set_free_fall_detection(uint8_t ff_on_off,
-				     uint8_t ff_thresh,
-				     uint8_t ff_time,
-				     uint8_t ff_int)
+void adxl345_set_free_fall_detection(adxl345_t *adxl345,
+									 uint8_t ff_on_off,
+									 uint8_t ff_thresh,
+									 uint8_t ff_time,
+									 uint8_t ff_int)
 {
 	uint8_t old_int_map = 0;
 	uint8_t new_int_map = 0;
 	uint8_t old_int_enable = 0;
 	uint8_t new_int_enable = 0;
 
-	adxl345_set_register_value(ADXL345_THRESH_FF, ff_thresh);
-	adxl345_set_register_value(ADXL345_TIME_FF, ff_time);
-	old_int_map = adxl345_get_register_value(ADXL345_INT_MAP);
+	adxl345_set_register_value(adxl345, ADXL345_THRESH_FF, ff_thresh);
+	adxl345_set_register_value(adxl345, ADXL345_TIME_FF, ff_time);
+	old_int_map = adxl345_get_register_value(adxl345, ADXL345_INT_MAP);
 	new_int_map = old_int_map & ~(ADXL345_FREE_FALL);
 	new_int_map = new_int_map | ff_int;
-	adxl345_set_register_value(ADXL345_INT_MAP, new_int_map);
-	old_int_enable = adxl345_get_register_value(ADXL345_INT_ENABLE);
+	adxl345_set_register_value(adxl345, ADXL345_INT_MAP, new_int_map);
+	old_int_enable = adxl345_get_register_value(adxl345, ADXL345_INT_ENABLE);
 	new_int_enable = old_int_enable & ~ADXL345_FREE_FALL;
 	new_int_enable = new_int_enable | (ADXL345_FREE_FALL * ff_on_off);
-	adxl345_set_register_value(ADXL345_INT_ENABLE, new_int_enable);
+	adxl345_set_register_value(adxl345, ADXL345_INT_ENABLE, new_int_enable);
 }
 
 /***************************************************************************//**
@@ -509,13 +519,14 @@ void adxl345_set_free_fall_detection(uint8_t ff_on_off,
  *
  * @return None.
 *******************************************************************************/
-void adxl345_set_offset(uint8_t x_offset,
-			uint8_t y_offset,
-			uint8_t z_offset)
+void adxl345_set_offset(adxl345_t *adxl345,
+						uint8_t x_offset,
+						uint8_t y_offset,
+						uint8_t z_offset)
 {
-	adxl345_set_register_value(ADXL345_OFSX, x_offset);
-	adxl345_set_register_value(ADXL345_OFSY, y_offset);
-	adxl345_set_register_value(ADXL345_OFSZ, z_offset);
+	adxl345_set_register_value(adxl345, ADXL345_OFSX, x_offset);
+	adxl345_set_register_value(adxl345, ADXL345_OFSY, y_offset);
+	adxl345_set_register_value(adxl345, ADXL345_OFSZ, z_offset);
 }
 
 /***************************************************************************//**
@@ -533,18 +544,18 @@ void adxl345_set_offset(uint8_t x_offset,
  *
  * @return None.
 *******************************************************************************/
-void adxl345_set_range_resolution(struct adxl345_dev *dev,
-				  uint8_t g_range,
-				  uint8_t full_res)
+void adxl345_set_range_resolution(adxl345_t *adxl345,
+								  uint8_t g_range,
+								  uint8_t full_res)
 {
 	uint8_t old_data_format = 0;
 	uint8_t new_data_format = 0;
 
-	old_data_format = adxl345_get_register_value(ADXL345_DATA_FORMAT);
+	old_data_format = adxl345_get_register_value(adxl345, ADXL345_DATA_FORMAT);
 	new_data_format = old_data_format &
 			  ~(ADXL345_RANGE(0x3) | ADXL345_FULL_RES);
 	new_data_format =  new_data_format | ADXL345_RANGE(g_range) | full_res;
-	adxl345_set_register_value(ADXL345_DATA_FORMAT, new_data_format);
-	dev->selected_range = (1 << (g_range + 1));
-	dev->full_resolution_set = full_res ? 1 : 0;
+	adxl345_set_register_value(adxl345, ADXL345_DATA_FORMAT, new_data_format);
+	adxl345->selected_range = (1 << (g_range + 1));
+	adxl345->full_resolution_set = full_res ? 1 : 0;
 }

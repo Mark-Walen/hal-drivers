@@ -175,7 +175,7 @@
 /* ADXL345 Full Resolution Scale Factor */
 #define ADXL345_SCALE_FACTOR    0.0039
 
-#define COMM_TYPE				ADXL345_I2C_COMM
+#define ADXL345_COMM_TYPE				ADXL345_I2C_COMM
 
 /******************************************************************************/
 /*************************** Types Declarations *******************************/
@@ -204,42 +204,43 @@ struct adxl345_dev {
 
 /*! Initializes the device interface. */
 #if (defined(COMM_TYPE)) && (COMM_TYPE == ADXL345_SPI_COMM)
-DEVICE_INTF_RET_TYPE adxl362_interface_init(adxl345_t *adxl345, device_t *dev,
+DEVICE_INTF_RET_TYPE adxl345_interface_init(adxl345_t *adxl345, device_t *dev,
 								  device_gpio_control_fptr_t gpio_set_pin,
 								  device_gpio_control_fptr_t gpio_reset_pin);
 #else
-DEVICE_INTF_RET_TYPE adxl362_interface_init(adxl345_t *adxl345, device_t *dev);
+DEVICE_INTF_RET_TYPE adxl345_interface_init(adxl345_t *adxl345, device_t *dev);
 #endif
 
 /*! Reads the value of a register. */
 uint8_t adxl345_get_register_value(adxl345_t *adxl345, uint8_t register_address);
 
 /*! Writes data into a register. */
-void adxl345_set_register_value(uint8_t register_address,
+void adxl345_set_register_value(adxl345_t *adxl345, uint8_t register_address,
 				uint8_t register_value);
 
 /*! Init. the comm. peripheral and checks if the ADXL345 part is present. */
 int32_t adxl345_init(adxl345_t *adxl345);
 
 /*! Free the resources allocated by adxl345_init(). */
-int32_t adxl345_remove(struct adxl345_dev *dev);
+int32_t adxl345_remove(adxl345_t *adxl345);
 
 /*! Places the device into standby/measure mode. */
-void adxl345_set_power_mode(uint8_t pwr_mode);
+void adxl345_set_power_mode(adxl345_t *adxl345, uint8_t pwr_mode);
 
 /*! Reads the raw output data of each axis. */
-void adxl345_get_xyz(int16_t* x,
-		     int16_t* y,
-		     int16_t* z);
+void adxl345_get_xyz(adxl345_t *adxl345,
+					 int16_t* x,
+					 int16_t* y,
+					 int16_t* z);
 
 /*! Reads the raw output data of each axis and converts it to g. */
-void adxl345_get_g_xyz(struct adxl345_dev *dev,
-				float* x,
-		       	float* y,
-		       	float* z);
+void adxl345_get_g_xyz(adxl345_t *adxl345,
+			    float* x,
+		        float* y,
+		        float* z);
 
 /*! Enables/disables the tap detection. */
-void adxl345_set_tap_detection(uint8_t tap_type,
+void adxl345_set_tap_detection(adxl345_t *adxl345, uint8_t tap_type,
 			       uint8_t tap_axes,
 			       uint8_t tap_dur,
 			       uint8_t tap_latent,
@@ -248,51 +249,38 @@ void adxl345_set_tap_detection(uint8_t tap_type,
 			       uint8_t tap_int);
 
 /*! Enables/disables the activity detection. */
-void adxl345_set_activity_detection(uint8_t act_on_off,
-				    uint8_t act_axes,
-				    uint8_t act_ac_dc,
-				    uint8_t act_thresh,
-				    uint8_t act_int);
+void adxl345_set_activity_detection(adxl345_t *adxl345,
+									uint8_t act_on_off,
+									uint8_t act_axes,
+									uint8_t act_ac_dc,
+									uint8_t act_thresh,
+									uint8_t act_int);
 
 /*! Enables/disables the inactivity detection. */
-void adxl345_set_inactivity_detection(uint8_t inact_on_off,
-				      uint8_t inact_axes,
-				      uint8_t inact_ac_dc,
-				      uint8_t inact_thresh,
-				      uint8_t inact_time,
-				      uint8_t inact_int);
+void adxl345_set_inactivity_detection(adxl345_t *adxl345,
+									  uint8_t inact_on_off,
+				      				  uint8_t inact_axes,
+				      				  uint8_t inact_ac_dc,
+				      				  uint8_t inact_thresh,
+				      				  uint8_t inact_time,
+				      				  uint8_t inact_int);
 
 /*! Enables/disables the free-fall detection. */
-void adxl345_set_free_fall_detection(uint8_t ff_on_off,
-				     uint8_t ff_thresh,
-				     uint8_t ff_time,
-				     uint8_t ff_int);
+void adxl345_set_free_fall_detection(adxl345_t *adxl345,
+									 uint8_t ff_on_off,
+									 uint8_t ff_thresh,
+									 uint8_t ff_time,
+									 uint8_t ff_int);
 
 /*! Sets an offset value for each axis (Offset Calibration). */
-void adxl345_set_offset(uint8_t x_offset,
-			uint8_t y_offset,
-			uint8_t z_offset);
+void adxl345_set_offset(adxl345_t *adxl345,
+						uint8_t x_offset,
+						uint8_t y_offset,
+						uint8_t z_offset);
 
 /*! Selects the measurement range. */
-void adxl345_set_range_resolution(struct adxl345_dev *dev,
+void adxl345_set_range_resolution(adxl345_t *adxl345,
 				  uint8_t g_range,
 				  uint8_t full_res);
-
-
-extern int  spi_transfer(uint8_t *tx_buffer,
-					uint8_t *rx_buffer,
-					uint16_t length);
-
-extern int spi_init(void);
-
-extern int spi_remove(void);
-
-extern int i2c_init(void);
-
-extern int i2c_remove(void);
-
-extern int i2c_master_receive(uint8_t slave_address, uint8_t *read_buf, uint16_t length);
-
-extern int i2c_master_transmit(uint8_t slave_address, uint8_t *write_buf, uint16_t length);
 
 #endif	/* __ADXL345_H__ */
