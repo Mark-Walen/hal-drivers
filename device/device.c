@@ -50,20 +50,20 @@
 
 #define CLEAR_REPETITION(_x) _struct_rep = 0
 
-static void *device_cpy(const void *src, size_t size)
-{
-    void *dest = NULL;
-    if (dest == NULL && size == 0)
-    {
-        return NULL;
-    }
-    if (dest == NULL)
-    {
-        dest = malloc(size);
-    }
-    memcpy(dest, src, size);
-    return dest;
-}
+// static void *device_cpy(const void *src, size_t size)
+// {
+//     void *dest = NULL;
+//     if (dest == NULL && size == 0)
+//     {
+//         return NULL;
+//     }
+//     if (dest == NULL)
+//     {
+//         dest = malloc(size);
+//     }
+//     memcpy(dest, src, size);
+//     return dest;
+// }
 
 DEVICE_INTF_RET_TYPE device_init(device_t *device,
                                  platform_ioctl_fptr_t read,
@@ -191,7 +191,7 @@ DEVICE_INTF_RET_TYPE vget_device_info(device_t *device, const char *fmt, va_list
     while (*fmt)
     {
         if (*fmt != '%') {
-            *fmt++;
+            fmt++;
             continue;
         }
         
@@ -223,6 +223,11 @@ DEVICE_INTF_RET_TYPE vget_device_info(device_t *device, const char *fmt, va_list
         fmt++;
     }
     
+    if (*type > UART)
+    {
+        *type = get_device_type_from_interface(interface);
+    }
+    
     return DEVICE_OK;
 }
 
@@ -236,6 +241,8 @@ struct device_info *get_device_info(device_t *device, const char *fmt, ...)
     va_start(args, fmt);
     vget_device_info(device, fmt, args);
     va_end(args);
+
+    return device->info;
 }
 
 DEVICE_INTF_RET_TYPE device_null_ptr_check(const device_t *dev)
@@ -257,8 +264,20 @@ DEVICE_INTF_RET_TYPE device_transfer(device_t *dev,
                                  uint8_t read)
 {
     uint8_t ret = DEVICE_OK;
+    device_type_t type = dev->info->type;
     
     ret = device_null_ptr_check(dev);
-    device_get_interface_type(dev);
+    switch (type)
+    {
+    case GPIO:
+        /* code */
+        break;
+    case SPI:
+        break;
+    case I2C:
+        break;
+    default:
+        break;
+    }
     return ret;
 }
