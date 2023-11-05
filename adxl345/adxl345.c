@@ -110,7 +110,7 @@ uint8_t adxl345_get_register_value(adxl345_t *adxl345, uint8_t register_address)
 		gpio_level = 1;
 		nss->write(&gpio_level, 1, nss->fp, nss->addr);
 	#else
-		status = dev->write(&register_address, 2, dev->fp, dev->addr);
+		status = dev->write(&register_address, 1, dev->fp, dev->addr);
 		status = dev->read(&register_value, 1, dev->fp, dev->addr);
 	#endif
 	return register_value;
@@ -394,7 +394,7 @@ void adxl345_set_activity_detection(adxl345_t *adxl345,
 	uint8_t old_int_enable = 0;
 	uint8_t new_int_enable = 0;
 
-	old_act_inact_ctl = adxl345_get_register_value(adxl345, ADXL345_INT_ENABLE);
+	old_act_inact_ctl = adxl345_get_register_value(adxl345, ADXL345_ACT_INACT_CTL);
 	new_act_inact_ctl = old_act_inact_ctl & ~(ADXL345_ACT_ACDC |
 			    ADXL345_ACT_X_EN |
 			    ADXL345_ACT_Y_EN |
@@ -450,8 +450,9 @@ void adxl345_set_inactivity_detection(adxl345_t *adxl345,
 	uint8_t new_int_map = 0;
 	uint8_t old_int_enable = 0;
 	uint8_t new_int_enable = 0;
+	platform_t *plm = get_platform();
 
-	old_act_inact_ctl = adxl345_get_register_value(adxl345, ADXL345_INT_ENABLE);
+	old_act_inact_ctl = adxl345_get_register_value(adxl345, ADXL345_ACT_INACT_CTL);
 	new_act_inact_ctl = old_act_inact_ctl & ~(ADXL345_INACT_ACDC |
 			    ADXL345_INACT_X_EN |
 			    ADXL345_INACT_Y_EN |
