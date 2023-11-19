@@ -51,29 +51,14 @@
 
 DEVICE_INTF_RET_TYPE adxl345_null_ptr_check(adxl345_t *adxl345)
 {
-#if (defined(COMM_TYPE)) && (COMM_TYPE == ADXL345_SPI_COMM)
-    if (adxl345 == NULL || adxl345->gpio_set_pin == NULL || adxl345->gpio_reset_pin == NULL)
-#else
 	if (adxl345 == NULL)
-#endif
     {
         return DEVICE_E_NULLPTR;
     }
     return device_null_ptr_check(adxl345->dev);
 }
 
-#if (defined(ADXL345_COMM_TYPE)) && (ADXL345_COMM_TYPE == ADXL345_SPI_COMM)
-DEVICE_INTF_RET_TYPE adxl345_interface_init(adxl345_t *adxl345, device_t *dev)
-{
-	if (adxl345 == NULL || dev == NULL)
-    {
-        return DEVICE_E_NULL_PTR;
-    }
 
-	adxl345->dev = dev;
-	return DEVICE_OK;
-}
-#else
 DEVICE_INTF_RET_TYPE adxl345_interface_init(adxl345_t *adxl345, device_t *dev)
 {
 	if (adxl345 == NULL || dev == NULL)
@@ -83,7 +68,6 @@ DEVICE_INTF_RET_TYPE adxl345_interface_init(adxl345_t *adxl345, device_t *dev)
 	adxl345->dev = dev;
 	return DEVICE_OK;
 }
-#endif
 
 /***************************************************************************//**
  * @brief Reads the value of a register.

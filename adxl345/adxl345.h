@@ -43,7 +43,7 @@
 /***************************** Include Files **********************************/
 /******************************************************************************/
 #include <stdint.h>
-#include <device.h>
+#include "device.h"
 
 /******************************************************************************/
 /******************************** ADXL345 *************************************/
@@ -219,13 +219,7 @@ struct adxl345_dev {
 /******************************************************************************/
 
 /*! Initializes the device interface. */
-#if (defined(ADXL345_COMM_TYPE)) && (ADXL345_COMM_TYPE == ADXL345_SPI_COMM)
-DEVICE_INTF_RET_TYPE adxl345_interface_init(adxl345_t *adxl345, device_t *dev,
-								  device_gpio_control_fptr_t gpio_set_pin,
-								  device_gpio_control_fptr_t gpio_reset_pin);
-#else
 DEVICE_INTF_RET_TYPE adxl345_interface_init(adxl345_t *adxl345, device_t *dev);
-#endif
 
 /*! Reads the value of a register. */
 uint8_t adxl345_get_register_value(adxl345_t *adxl345, uint8_t register_address);

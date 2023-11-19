@@ -223,10 +223,10 @@ DEVICE_INTF_RET_TYPE vget_device_info(device_t *device, const char *fmt, va_list
         fmt++;
     }
     
-    if (*type > UART)
-    {
-        *type = get_device_type_from_interface(interface);
-    }
+    // if (*type > UART)
+    // {
+    //     *type = get_device_type_from_interface(interface);
+    // }
     
     return DEVICE_OK;
 }
@@ -247,13 +247,15 @@ struct device_info *get_device_info(device_t *device, const char *fmt, ...)
 
 DEVICE_INTF_RET_TYPE device_null_ptr_check(const device_t *dev)
 {
+    platform_t *plt = get_platform();
     if ((dev == NULL) || (dev->read == NULL) || (dev->write == NULL))
     {
         /* Device structure pointer is not valid */
         return DEVICE_E_NULLPTR;
     }
 
-    return  platform_check_nullptr(platform);
+    // return DEVICE_OK;
+    return platform_check_nullptr(plt);
 }
 
 DEVICE_INTF_RET_TYPE device_transfer(device_t *dev,

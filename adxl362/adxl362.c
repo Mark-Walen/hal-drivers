@@ -95,7 +95,6 @@ DEVICE_INTF_RET_TYPE adxl362_get_id(adxl362_t *adxl362)
     if (ret != DEVICE_OK) return ret;
 
 	adxl362_get_register_value(adxl362, &reg_value, ADXL362_REG_PARTID, 1);
-	platform->println("%.2x\n", reg_value);
 	if((reg_value != ADXL362_PART_ID)) return DEVICE_E_NOT_FOUND;
 	config_device_info(adxl362->dev, "%n%i%c", "adxl362", SPI, reg_value);
 
