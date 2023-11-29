@@ -95,7 +95,7 @@
 /* SpO2 ADC Range Control (18-Bit Resolution)*/
 #define MAX30102_SPO2_CFG_ADC_REG(X)                (((X) & 0x03) << 5)
 #define MAX30102_SPO2_ADC_RGE_2048                  (0b00)          // LSB Size 7.81 pA
-#define MAX30102_SPO2_ADC_RGE_4096                  (0b00)          // LSB Size 15.63 pA
+#define MAX30102_SPO2_ADC_RGE_4096                  (0b01)          // LSB Size 15.63 pA
 #define MAX30102_SPO2_ADC_RGE_8192                  (0b10)          // LSB Size 31.25 pA
 #define MAX30102_SPO2_ADC_RGE_16384                 (0b11)          // LSB Size 62.45 pA
 
@@ -147,7 +147,7 @@ typedef enum max30102_ret_type
     MAX30102_E_INVALID_LED_SLOT,
 } max30102_ret_type_t;
 
-DEVICE_INTF_RET_TYPE max30102_init_wrap(max30102_t *max30102);
+DEVICE_INTF_RET_TYPE max30102_interface_init(max30102_t *max30102, device_t *dev);
 DEVICE_INTF_RET_TYPE max30102_init(device_t *max30102);
 
 /*! Reads the value of a register. */
@@ -163,15 +163,15 @@ DEVICE_INTF_RET_TYPE max30102_set_register_value(device_t *max30102,
 
 DEVICE_INTF_RET_TYPE max30102_int1_en(device_t *max30102, uint8_t int_ctl);
 DEVICE_INTF_RET_TYPE max30102_int2_en(device_t *max30102, uint8_t temp_rdy_en);
-DEVICE_INTF_RET_TYPE max30102_get_int1_status(device_t *max30102, uint8_t status);
-DEVICE_INTF_RET_TYPE max30102_get_int2_status(device_t *max30102, uint8_t status);
+DEVICE_INTF_RET_TYPE max30102_get_int1_status(device_t *max30102, uint8_t *status);
+DEVICE_INTF_RET_TYPE max30102_get_int2_status(device_t *max30102, uint8_t *status);
 
-DEVICE_INTF_RET_TYPE max30102_get_fifo_wr_ptr(device_t *max30102, uint8_t wr_ptr);
-DEVICE_INTF_RET_TYPE max30102_get_fifo_ovf_counter(device_t *max30102, uint8_t overflow_counter);
-DEVICE_INTF_RET_TYPE max30102_get_fifo_rd_ptr(device_t *max30102, uint8_t rd_ptr);
+DEVICE_INTF_RET_TYPE max30102_get_fifo_wr_ptr(device_t *max30102, uint8_t *wr_ptr);
+DEVICE_INTF_RET_TYPE max30102_get_fifo_ovf_counter(device_t *max30102, uint8_t *overflow_counter);
+DEVICE_INTF_RET_TYPE max30102_get_fifo_rd_ptr(device_t *max30102, uint8_t *rd_ptr);
 DEVICE_INTF_RET_TYPE max30102_get_fifo_size(device_t *max30102, uint8_t *buffer_size);
 DEVICE_INTF_RET_TYPE max30102_fifo_read_one(device_t *max30102, uint32_t *red_led, uint32_t *ir_led);
-DEVICE_INTF_RET_TYPE max30102_get_fifo_data(device_t *max30102, uint32_t *red_led_data, uint32_t *ir_led_data, uint16_t len);
+DEVICE_INTF_RET_TYPE max30102_get_fifo_data(device_t *max30102, uint32_t *red_led_data, uint32_t *ir_led_data, uint16_t data_size, uint16_t sample_size, uint16_t data_start_idx);
 DEVICE_INTF_RET_TYPE max30102_set_fifo_a_full(device_t *max30102, uint8_t a_full);
 DEVICE_INTF_RET_TYPE max30102_fifo_rollover_en(device_t *max30102, uint8_t enable);
 DEVICE_INTF_RET_TYPE max30102_set_fifo_smp_ave(device_t *max30102, uint8_t smp_ave);

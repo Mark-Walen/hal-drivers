@@ -1,42 +1,37 @@
 #include <stdio.h>
 #include "max30102/max30102.h"
 
-DEVICE_INTF_RET_TYPE max30102_null_ptr_check(max30102_t *max30102)
+DEVICE_INTF_RET_TYPE max30102_interface_init(max30102_t *max30102, device_t *dev)
 {
-    if (max30102 == NULL)
+	if (max30102 == NULL || dev == NULL)
     {
-        return MAX30102_E_NULLPTR;
+        return DEVICE_E_NULLPTR;
     }
-    return device_null_ptr_check(max30102->dev);
-}
 
-DEVICE_INTF_RET_TYPE max30102_init_wrap(max30102_t *max30102)
-{
-    if (max30102_null_ptr_check(max30102))
-    {
-        return MAX30102_E_NULLPTR;
-    }
-    
-    return max30102_init(max30102->dev);
+	max30102->dev = dev;
+	return DEVICE_OK;
 }
 
 DEVICE_INTF_RET_TYPE max30102_init(device_t *max30102)
 {
     int32_t status = 0;
     uint8_t chip_id = 0;
-    device_t *dev = max30102;
+    
+    if (device_null_ptr_check(max30102) != MAX30102_OK)
+    {
+        return MAX30102_E_NULLPTR;
+    }
 
-    status = max30102_get_register_value(dev, MAX30102_REG_PART_ID, &chip_id, 1);
+    status = max30102_get_register_value(max30102, MAX30102_REG_PART_ID, &chip_id, 1);
 	if (status != MAX30102_OK)
 		return status;
+    
     if (chip_id != MAX30102_ID)
     {
         return MAX30102_E_NOT_FOUND;
     }
-    
-	config_device_info(dev, "%n%i%c", "max30102", "I2C", chip_id);
 
-	return MAX30102_OK;
+	return config_device_info(max30102, "%n%i%c", "max30102", "I2C", chip_id);
 }
 
 /*! Reads the value of a register. */
@@ -46,12 +41,10 @@ DEVICE_INTF_RET_TYPE max30102_get_register_value(device_t *max30102,
                                                 uint16_t len)
 {
     DEVICE_INTF_RET_TYPE ret = MAX30102_OK;
-    device_t *dev = max30102;
 
-    ret = device_null_ptr_check(dev);
-    if (ret != MAX30102_OK)
+    if (device_null_ptr_check(max30102) != MAX30102_OK)
     {
-        return ret;
+        return MAX30102_E_NULLPTR;
     }
 
     ret = max30102->write(&reg, 1, max30102->fp, max30102->addr);
@@ -80,23 +73,23 @@ DEVICE_INTF_RET_TYPE max30102_set_register_value(device_t *max30102,
 }
 
 /**
- * @brief get interrupt 2 status
- * 
- * @param[in, out] status: a_full, ppg_rdy, alc_ovf.
-*/
-DEVICE_INTF_RET_TYPE max30102_get_int2_status(device_t *max30102, uint8_t status)
-{
-    return max30102_get_register_value(max30102, MAX30102_REG_INTR_STATUS_2, &status, 1);
-}
-
-/**
  * @brief get interrupt 1 status
  * 
  * @param[in, out] status: a_full, ppg_rdy, alc_ovf.
 */
-DEVICE_INTF_RET_TYPE max30102_get_int1_status(device_t *max30102, uint8_t status)
+DEVICE_INTF_RET_TYPE max30102_get_int1_status(device_t *max30102, uint8_t *status)
 {
-    return max30102_get_register_value(max30102, MAX30102_REG_INTR_STATUS_1, &status, 1);
+    return max30102_get_register_value(max30102, MAX30102_REG_INTR_STATUS_1, status, 1);
+}
+
+/**
+ * @brief get interrupt 2 status
+ * 
+ * @param[in, out] status: a_full, ppg_rdy, alc_ovf.
+*/
+DEVICE_INTF_RET_TYPE max30102_get_int2_status(device_t *max30102, uint8_t *status)
+{
+    return max30102_get_register_value(max30102, MAX30102_REG_INTR_STATUS_2, status, 1);
 }
 
 /**
@@ -124,9 +117,9 @@ DEVICE_INTF_RET_TYPE max30102_int2_en(device_t *max30102, uint8_t temp_rdy_en)
  * 
  * @param[in, out] wr_ptr: overflow count.
 */
-DEVICE_INTF_RET_TYPE max30102_get_fifo_wr_ptr(device_t *max30102, uint8_t wr_ptr)
+DEVICE_INTF_RET_TYPE max30102_get_fifo_wr_ptr(device_t *max30102, uint8_t *wr_ptr)
 {
-    return max30102_get_register_value(max30102, MAX30102_REG_FIFO_WR_PTR, &wr_ptr, 1);
+    return max30102_get_register_value(max30102, MAX30102_REG_FIFO_WR_PTR, wr_ptr, 1);
 }
 
 /**
@@ -134,9 +127,9 @@ DEVICE_INTF_RET_TYPE max30102_get_fifo_wr_ptr(device_t *max30102, uint8_t wr_ptr
  * 
  * @param[in, out] overflow_counter: overflow count.
 */
-DEVICE_INTF_RET_TYPE max30102_get_fifo_ovf_counter(device_t *max30102, uint8_t overflow_counter)
+DEVICE_INTF_RET_TYPE max30102_get_fifo_ovf_counter(device_t *max30102, uint8_t *overflow_counter)
 {
-    return max30102_get_register_value(max30102, MAX30102_REG_OVF_COUNTER, &overflow_counter, 1);
+    return max30102_get_register_value(max30102, MAX30102_REG_OVF_COUNTER, overflow_counter, 1);
 }
 
 /**
@@ -144,9 +137,9 @@ DEVICE_INTF_RET_TYPE max30102_get_fifo_ovf_counter(device_t *max30102, uint8_t o
  * 
  * @param[in, out] rd_ptr: read pointer.
 */
-DEVICE_INTF_RET_TYPE max30102_get_fifo_rd_ptr(device_t *max30102, uint8_t rd_ptr)
+DEVICE_INTF_RET_TYPE max30102_get_fifo_rd_ptr(device_t *max30102, uint8_t *rd_ptr)
 {
-    return max30102_get_register_value(max30102, MAX30102_REG_FIFO_RD_PTR, &rd_ptr, 1);
+    return max30102_get_register_value(max30102, MAX30102_REG_FIFO_RD_PTR, rd_ptr, 1);
 }
 
 /**
@@ -157,17 +150,18 @@ DEVICE_INTF_RET_TYPE max30102_get_fifo_rd_ptr(device_t *max30102, uint8_t rd_ptr
 */
 DEVICE_INTF_RET_TYPE max30102_get_fifo_size(device_t *max30102, uint8_t *buffer_size)
 {
+    uint8_t int1_status = 0, int2_status = 0;
     uint8_t write_ptr = 0, read_ptr = 0;
     int8_t tmp;
     DEVICE_INTF_RET_TYPE ret = MAX30102_OK;
 
-    ret = max30102_get_fifo_wr_ptr(max30102, write_ptr);
+    ret = max30102_get_fifo_wr_ptr(max30102, &write_ptr);
     if (ret != MAX30102_OK)
     {
         return ret;
     }
 
-    ret = max30102_get_fifo_rd_ptr(max30102, read_ptr);
+    ret = max30102_get_fifo_rd_ptr(max30102, &read_ptr);
     if (ret != MAX30102_OK)
     {
         return ret;
@@ -179,6 +173,7 @@ DEVICE_INTF_RET_TYPE max30102_get_fifo_size(device_t *max30102, uint8_t *buffer_
         tmp += 32;
     }
     *buffer_size = tmp;
+    printf("%d %d, %d\r\n", read_ptr, write_ptr, tmp);
     return ret;
 }
 
@@ -191,7 +186,6 @@ DEVICE_INTF_RET_TYPE max30102_get_fifo_size(device_t *max30102, uint8_t *buffer_
 */
 DEVICE_INTF_RET_TYPE max30102_fifo_read_one(device_t *max30102, uint32_t *red_led, uint32_t *ir_led)
 {
-    uint8_t int1_status = 0, int2_status = 0;
     DEVICE_INTF_RET_TYPE ret = MAX30102_OK;
     uint8_t buffer[6];
     if (red_led == NULL || ir_led == NULL)
@@ -199,8 +193,6 @@ DEVICE_INTF_RET_TYPE max30102_fifo_read_one(device_t *max30102, uint32_t *red_le
         return MAX30102_E_NULLPTR;
     }
     
-    ret = max30102_get_int1_status(max30102, int1_status);
-    ret = max30102_get_int2_status(max30102, int2_status);
     ret = max30102_get_register_value(max30102, MAX30102_REG_FIFO_DATA, buffer, 6);
 
     *red_led = (buffer[0] << 16 | buffer[1] << 8 | buffer[2]) & 0x0003FFFF;
@@ -231,13 +223,13 @@ static void discard_head(uint32_t *data, uint16_t data_size, uint16_t head_n)
  * @param[in, out] ir_led_data: ir led samples
  * @param[in, out] len: sample length
 */
-DEVICE_INTF_RET_TYPE max30102_get_fifo_data(device_t *max30102, uint32_t *red_led_data, uint32_t *ir_led_data, uint16_t len)
+DEVICE_INTF_RET_TYPE max30102_get_fifo_data(device_t *max30102, uint32_t *red_led_data, uint32_t *ir_led_data, uint16_t data_size, uint16_t sample_size, uint16_t data_start_idx)
 {
-    uint8_t count = len;
+    uint16_t count = sample_size, data_idx = data_start_idx;
     uint8_t fifo_size = 0, discard_size;
     DEVICE_INTF_RET_TYPE ret = MAX30102_OK;
 
-    if (red_led_data == NULL || ir_led_data == NULL || len == 0)
+    if (red_led_data == NULL || ir_led_data == NULL || data_size == 0 || (data_idx + sample_size) > data_size)
     {
         return MAX30102_E_NULLPTR;
     }
@@ -245,24 +237,25 @@ DEVICE_INTF_RET_TYPE max30102_get_fifo_data(device_t *max30102, uint32_t *red_le
     while (count > 0)
     {
         ret = max30102_get_fifo_size(max30102, &fifo_size);
+        printf("%d\n", fifo_size);
         if (count < fifo_size)
         {
             discard_size = fifo_size - count;
-            discard_head(red_led_data, len, discard_size);
-            discard_head(ir_led_data, len, discard_size);
+            discard_head(red_led_data, data_size, discard_size);
+            discard_head(ir_led_data, data_size, discard_size);
             red_led_data -= discard_size;
             ir_led_data -= discard_size;
         }
         
         while (fifo_size > 0)
         {
-            ret = max30102_fifo_read_one(max30102, red_led_data, ir_led_data);
-            red_led_data++;
-            ir_led_data++;
+            ret = max30102_fifo_read_one(max30102, &red_led_data[data_idx], &ir_led_data[data_idx]);
+            data_idx++;
             fifo_size--;
         }
         count -= fifo_size;
     }
+    printf("hey");
     return ret;
 }
 
