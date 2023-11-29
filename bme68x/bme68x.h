@@ -74,7 +74,10 @@ extern "C" {
  * @retval 0 -> Success
  * @retval < 0 -> Fail
  */
-int8_t bme68x_init(bme68x_t *bme68x, device_type_t dtype);
+int8_t bme68x_init(bme68x_t *bme68x);
+
+/*! Initializes the device interface. */
+DEVICE_INTF_RET_TYPE bme68x_interface_init(bme68x_t *bme68x, device_t *dev, device_type_t dtype);
 
 /**
  * \ingroup bme68x

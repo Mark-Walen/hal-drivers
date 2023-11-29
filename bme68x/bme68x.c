@@ -142,11 +142,10 @@ static int8_t analyze_sensor_data(const struct bme68x_data *data, uint8_t n_meas
 * verify the sensor and also calibrates the sensor
 * As this API is the entry point, call this API before using other APIs.
 */
-int8_t bme68x_init(bme68x_t *bme68x, device_type_t dtype)
+int8_t bme68x_init(bme68x_t *bme68x)
 {
     int8_t rslt = bme68x_null_ptr_check(bme68x);
     uint8_t chip_id;
-    char *interface = NULL;
     if (rslt != DEVICE_OK) return rslt;
     device_t *dev = bme68x->dev;
 
@@ -163,6 +162,24 @@ int8_t bme68x_init(bme68x_t *bme68x, device_type_t dtype)
 
     /* Read Variant ID */
     rslt = read_variant_id(bme68x);
+    config_device_info(dev, "%n%c", "BME68x", chip_id);
+
+    if (rslt == DEVICE_OK)
+    {
+        /* Get the Calibration data */
+        rslt = get_calib_data(dev);
+    }
+    return rslt;
+}
+
+DEVICE_INTF_RET_TYPE bme68x_interface_init(bme68x_t *bme68x, device_t *dev, device_type_t dtype)
+{
+    char *interface = NULL;
+	if (bme68x == NULL || dev == NULL)
+    {
+        return DEVICE_E_NULLPTR;
+    }
+
     switch (dtype)
     {
     case SPI:
@@ -171,17 +188,14 @@ int8_t bme68x_init(bme68x_t *bme68x, device_type_t dtype)
     
     case I2C:
     default:
+        dtype = I2C;
         interface = "I2C";
         break;
     }
-    config_device_info(dev, "%n%i%c", "BME68x", interface, chip_id);
 
-    if (rslt == DEVICE_OK)
-    {
-        /* Get the Calibration data */
-        rslt = get_calib_data(dev);
-    }
-    return rslt;
+    config_device_info(dev, "%i%t", interface, dtype);
+	bme68x->dev = dev;
+	return DEVICE_OK;
 }
 
 /*
@@ -270,7 +284,7 @@ int8_t bme68x_get_regs(uint8_t reg_addr, uint8_t *reg_data, uint32_t len, bme68x
     if (dtype == SPI)
     {
         device_t *nss = (device_t *) dev->addr;
-        if(nss != NULL) return DEVICE_E_NULLPTR;
+        if(nss == NULL) return DEVICE_E_NULLPTR;
         /* Set the memory page */
         rslt = set_mem_page(reg_addr, bme68x);
         if (rslt == DEVICE_OK)
@@ -780,7 +794,7 @@ int8_t bme68x_selftest_check(const bme68x_t *bme68x)
         t_dev.amb_temp = 25;
         t_dev.dev = bme68x->dev;
 
-        rslt = bme68x_init(&t_dev, "I2C");
+        rslt = bme68x_init(&t_dev);
     }
 
     if (rslt == DEVICE_OK)
