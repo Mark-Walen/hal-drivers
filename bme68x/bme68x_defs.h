@@ -877,9 +877,6 @@ struct bme68x_dev
      */
     uint32_t variant_id;
 
-    /*! SPI/I2C interface */
-    enum bme68x_intf intf;
-
     /*! Memory page used */
     uint8_t mem_page;
 
@@ -897,12 +894,6 @@ struct bme68x_dev
 
     /* Platform interface instance */
     device_t *dev;
-
-    /* GPIO control function pointer for SPI Communication */
-    device_gpio_control_fptr_t gpio_set_pin;
-
-    /* GPIO control function pointer for SPI Communication */
-    device_gpio_control_fptr_t gpio_reset_pin;
 };
 
 #endif /* BME68X_DEFS_H_ */

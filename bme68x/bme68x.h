@@ -74,7 +74,7 @@ extern "C" {
  * @retval 0 -> Success
  * @retval < 0 -> Fail
  */
-int8_t bme68x_init(bme68x_t *bme68x);
+int8_t bme68x_init(bme68x_t *bme68x, device_type_t dtype);
 
 /**
  * \ingroup bme68x
