@@ -36,6 +36,7 @@
  * @author     Mark Walen
  * @brief      A common device interface.
  */
+#include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
 #include "device.h"
@@ -225,7 +226,7 @@ DEVICE_INTF_RET_TYPE vget_device_info(device_t *device, const char *fmt, va_list
     
     // if (*type > UART)
     // {
-    //     *type = get_device_type_from_interface(interface);
+    //     // *type = get_device_type_from_interface(interface);
     // }
     
     return DEVICE_OK;
@@ -258,6 +259,8 @@ DEVICE_INTF_RET_TYPE device_null_ptr_check(const device_t *dev)
     return platform_check_nullptr(plt);
 }
 
+DEVICE_INTF_RET_TYPE device_ioctl(device_t *dev, uint32_t cmd, ...);
+
 DEVICE_INTF_RET_TYPE device_transfer(device_t *dev,
                                  uint8_t *reg_addr,
                                  uint16_t n_address,
@@ -266,20 +269,20 @@ DEVICE_INTF_RET_TYPE device_transfer(device_t *dev,
                                  uint8_t read)
 {
     uint8_t ret = DEVICE_OK;
-    device_type_t type = dev->info->type;
-    
-    ret = device_null_ptr_check(dev);
-    switch (type)
+    uint8_t *data = NULL;
+    uint16_t data_size = n_address + buffer_size;
+    platform_ioctl_fptr_t transfer = dev->write;
+
+    if (read)
     {
-    case GPIO:
-        /* code */
-        break;
-    case SPI:
-        break;
-    case I2C:
-        break;
-    default:
-        break;
+        transfer = dev->read;
     }
+    
+    if (device_null_ptr_check(dev))
+        return DEVICE_E_NULLPTR;
+    
+    data = malloc(sizeof(uint8_t)*data_size);
+    ret = transfer(data, data_size, dev->fp, dev->addr);
+    free(data);
     return ret;
 }
