@@ -109,7 +109,7 @@
 #define SH1106_ROW                      8 * SH1106_PAGE     // OLED rows
 #endif
 #ifndef SH1106_COLUMN
-#define SH1106_COLUMN                   128                 // OLED columns
+#define SH1106_COLUMN                   132                 // OLED columns
 #endif
 
 typedef enum {
@@ -129,20 +129,11 @@ struct sh1106_dev
 
     // dc pin: low: command, hig: data
     device_t *dc_pin;
-    sh1106_attr_t *sh1106_attr;
-};
+	
+//	int (*send_cmd)(uint8_t data, uint8_t cmd);
 
-struct sh1106_dev_attr
-{
-    uint16_t page;
-    uint16_t row;
-    uint16_t column;
-    sh1106_gpu_t *sh1106_gpu;
-};
-
-struct sh1106_dev_gpu
-{
-    uint8_t **gpu;
+    // gpu
+//    uint8_t  gpu[SH1106_COLUMN][SH1106_PAGE];
 };
 
 enum sh1106_ret
@@ -170,7 +161,7 @@ enum sh1106_ret
 
 DEVICE_INTF_RET_TYPE sh1106_null_ptr_check(sh1106_t *sh1106);
 
-DEVICE_INTF_RET_TYPE sh1106_reset(sh1106_t *sh1106);
+DEVICE_INTF_RET_TYPE sh1106_reset(device_t *reset_pin);
 DEVICE_INTF_RET_TYPE sh1106_init(sh1106_t *sh1106);
 DEVICE_INTF_RET_TYPE oled_sh1106_init(sh1106_t *sh1106);
 sh1106_attr_t *sh1106_attr_create(uint32_t page, uint32_t column);
@@ -179,7 +170,7 @@ sh1106_gpu_t *sh1106_gpu_create(uint32_t page, uint32_t column);
 sh1106_gpu_t *sh1106_get_gpu(sh1106_t *sh1106);
 void sh1106_gpu_destroy(sh1106_gpu_t *gpu, uint32_t page);
 DEVICE_INTF_RET_TYPE sh1106_attr_init(sh1106_t *sh1106, uint32_t page, uint32_t column);
-DEVICE_INTF_RET_TYPE sh1106_interface_init(sh1106_t *sh1106, device_t *dev, device_t *reset_pin, device_t *dc_pin, device_type_t dtype, uint32_t page, uint32_t column);
+DEVICE_INTF_RET_TYPE sh1106_interface_init(sh1106_t *sh1106, device_t *dev, device_t *reset_pin, device_t *dc_pin, device_type_t dtype);
 
 DEVICE_INTF_RET_TYPE sh1106_send_cmd(sh1106_t *sh1106, uint8_t cmd);
 DEVICE_INTF_RET_TYPE sh1106_send_data(sh1106_t *sh1106, uint8_t *data, uint16_t len);

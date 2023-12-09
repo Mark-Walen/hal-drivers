@@ -81,7 +81,6 @@ DEVICE_INTF_RET_TYPE device_init(device_t *device,
     device->write = write;
     device->addr = addr;
     device->fp = fp;
-    device->addr = addr;
 
     return device_null_ptr_check(device);
 }
@@ -255,8 +254,13 @@ DEVICE_INTF_RET_TYPE device_null_ptr_check(const device_t *dev)
         return DEVICE_E_NULLPTR;
     }
 
-    // return DEVICE_OK;
-    return platform_check_nullptr(plt);
+    // Check platform instance init state
+    if (platform_check_nullptr(plt) != PLATFORM_OK)
+    {
+        return DEVICE_E_UNINIT_PLATFORM;
+    }
+
+    return DEVICE_OK;
 }
 
 DEVICE_INTF_RET_TYPE device_ioctl(device_t *dev, uint32_t cmd, ...);

@@ -120,7 +120,7 @@ enum device_ret
     RET_ERROR(DEVICE, INVALID_LENGTH),
 
     /* Insufficient heap space. */
-    RET_ERROR(DEVICE, HEAP_OVERFLOW)
+    RET_ERROR(DEVICE, HEAP_OVERFLOW),
 };
 
 enum device_type

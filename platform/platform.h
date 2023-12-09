@@ -56,7 +56,8 @@
 /* Common function ret values: success, error, and nullptr error (Instance was not initialized properly) */
 #define COMMON_RET(NAME) RET_INFO(NAME, OK), \
                          RET_INFO(NAME, ERROR), \
-                         RET_ERROR(NAME, NULLPTR)
+                         RET_ERROR(NAME, NULLPTR), \
+                         RET_ERROR(NAME, UNINIT_PLATFORM)   // Platform unintialized
 
 #ifndef PLATFORM_INTF_RET_TYPE
 /**
@@ -127,7 +128,7 @@ typedef PLATFORM_PRINTF_RET_TYPE (*platform_printf_fptr_t)(const char *fmt, ...)
  */
 typedef PLATFORM_INTF_RET_TYPE (*platform_ioctl_fptr_t)(uint8_t *reg_data, uint32_t length, void *fp, void *addr);
 
-typedef struct platform platform_t;
+typedef struct platform_s platform_t;
 typedef enum platform_ret platform_ret_t;
 
 enum platform_ret
@@ -136,7 +137,7 @@ enum platform_ret
     PLATFORM_E_OOM
 };
 
-struct platform
+struct platform_s
 {
     /* Platform name. STM32F103 etc. */
     const char *name;
@@ -150,9 +151,6 @@ struct platform
     /* Printf function pointer */
     platform_printf_fptr_t println;
 };
-
-/* Standalone platform instance */
-extern platform_t *platform;
 
 /**
  * @brief Get Platform instance

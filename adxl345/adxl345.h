@@ -121,22 +121,22 @@
 
 /* ADXL345_BW_RATE definition */
 #define ADXL345_LOW_POWER       (1 << 4)
-#define ADXL345_RATE_0_10		(0b0000)
-#define ADXL345_RATE_0_20		(0b0001)
-#define ADXL345_RATE_0_39		(0b0010)
-#define ADXL345_RATE_0_78		(0b0011)
-#define ADXL345_RATE_1_56		(0b0100)
-#define ADXL345_RATE_3_13		(0b0101)
-#define ADXL345_RATE_6_25		(0b0110)
-#define ADXL345_RATE_12_5		(0b0111)
-#define ADXL345_RATE_25			(0b1000)
-#define ADXL345_RATE_50			(0b1001)
-#define ADXL345_RATE_100		(0b1010)
-#define ADXL345_RATE_200		(0b1011)
-#define ADXL345_RATE_400		(0b1100)
-#define ADXL345_RATE_800		(0b1101)
-#define ADXL345_RATE_1600		(0b1110)
-#define ADXL345_RATE_3200		(0b1111)
+#define ADXL345_RATE_0_10		(0x00)
+#define ADXL345_RATE_0_20		(0x01)
+#define ADXL345_RATE_0_39		(0x02)
+#define ADXL345_RATE_0_78		(0x03)
+#define ADXL345_RATE_1_56		(0x04)
+#define ADXL345_RATE_3_13		(0x05)
+#define ADXL345_RATE_6_25		(0x06)
+#define ADXL345_RATE_12_5		(0x07)
+#define ADXL345_RATE_25			(0x08)
+#define ADXL345_RATE_50			(0x09)
+#define ADXL345_RATE_100		(0x0A)
+#define ADXL345_RATE_200		(0x0B)
+#define ADXL345_RATE_400		(0x0C)
+#define ADXL345_RATE_800		(0x0D)
+#define ADXL345_RATE_1600		(0x0E)
+#define ADXL345_RATE_3200		(0x0F)
 #define ADXL345_RATE(x)         ((x) & 0xF)
 
 /* ADXL345_POWER_CTL definition */
@@ -208,10 +208,6 @@ struct adxl345_dev {
 	uint8_t		selected_range;
 	/** Enable/Disable Full Resolution */
 	uint8_t		full_resolution_set;
-#if (defined(COMM_TYPE)) && (COMM_TYPE == ADXL345_SPI_COMM)
-	device_gpio_control_fptr_t gpio_set_pin;
-    device_gpio_control_fptr_t gpio_reset_pin;
-#endif
 };
 
 /******************************************************************************/

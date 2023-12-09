@@ -151,7 +151,7 @@ int8_t bme68x_init(bme68x_t *bme68x)
 
     (void) bme68x_soft_reset(bme68x);
 
-    rslt = bme68x_get_regs(BME68X_REG_CHIP_ID, &chip_id, 1, dev);
+    rslt = bme68x_get_regs(BME68X_REG_CHIP_ID, &chip_id, 1, bme68x);
 
     if (rslt != DEVICE_OK) return rslt;
 
@@ -167,7 +167,7 @@ int8_t bme68x_init(bme68x_t *bme68x)
     if (rslt == DEVICE_OK)
     {
         /* Get the Calibration data */
-        rslt = get_calib_data(dev);
+        rslt = get_calib_data(bme68x);
     }
     return rslt;
 }
@@ -225,7 +225,8 @@ int8_t bme68x_set_regs(const uint8_t *reg_addr, const uint8_t *reg_data, uint32_
     {
         if (dtype == SPI)
         {
-            if(nss == NULL) return DEVICE_E_NULLPTR;
+            rslt = device_null_ptr_check(nss);
+            if(rslt != DEVICE_OK) return DEVICE_E_NULLPTR;
             /* Set the memory page */
             rslt = set_mem_page(reg_addr[index], bme68x);
             tmp_buff[(2 * index)] = reg_addr[index] & BME68X_SPI_WR_MSK;
@@ -284,7 +285,8 @@ int8_t bme68x_get_regs(uint8_t reg_addr, uint8_t *reg_data, uint32_t len, bme68x
     if (dtype == SPI)
     {
         device_t *nss = (device_t *) dev->addr;
-        if(nss == NULL) return DEVICE_E_NULLPTR;
+        rslt = device_null_ptr_check(nss);
+        if(rslt != DEVICE_OK) return DEVICE_E_NULLPTR;
         /* Set the memory page */
         rslt = set_mem_page(reg_addr, bme68x);
         if (rslt == DEVICE_OK)
@@ -317,6 +319,7 @@ int8_t bme68x_soft_reset(bme68x_t *bme68x)
 {
     int8_t rslt;
     uint8_t reg_addr = BME68X_REG_SOFT_RESET;
+    platform_t *platform = NULL;
     device_type_t dtype;
 
     /* 0xb6 is the soft reset command */
@@ -336,6 +339,7 @@ int8_t bme68x_soft_reset(bme68x_t *bme68x)
         rslt = get_mem_page(bme68x);
     }
 
+    platform = get_platform();
     /* Reset the device */
     if (rslt == DEVICE_OK)
     {
@@ -485,6 +489,12 @@ int8_t bme68x_set_op_mode(const uint8_t op_mode, bme68x_t *bme68x)
     uint8_t tmp_pow_mode;
     uint8_t pow_mode = 0;
     uint8_t reg_addr = BME68X_REG_CTRL_MEAS;
+    platform_t *platform = get_platform();
+
+    if (platform_check_nullptr(platform) != PLATFORM_OK)
+    {
+        return DEVICE_E_UNINIT_PLATFORM;
+    }
 
     /* Call until in sleep */
     do
@@ -785,29 +795,75 @@ int8_t bme68x_selftest_check(const bme68x_t *bme68x)
     struct bme68x_dev t_dev;
     struct bme68x_conf conf;
     struct bme68x_heatr_conf heatr_conf;
+    platform_t *platform = NULL;
 
     rslt = bme68x_null_ptr_check(bme68x);
 
-    if (rslt == DEVICE_OK)
+    if (rslt != DEVICE_OK)
     {
-        /* Copy required parameters from reference bme68x_dev struct */
-        t_dev.amb_temp = 25;
-        t_dev.dev = bme68x->dev;
+        return rslt;
+    }
+    /* Copy required parameters from reference bme68x_dev struct */
+    t_dev.amb_temp = 25;
+    t_dev.dev = bme68x->dev;
+    platform = get_platform();
 
-        rslt = bme68x_init(&t_dev);
+    rslt = bme68x_init(&t_dev);
+
+    if (rslt != DEVICE_OK)
+    {
+        return rslt;
     }
 
+    /* Set the temperature, pressure and humidity & filter settings */
+    conf.os_hum = BME68X_OS_1X;
+    conf.os_pres = BME68X_OS_16X;
+    conf.os_temp = BME68X_OS_2X;
+
+    /* Set the remaining gas sensor settings and link the heating profile */
+    heatr_conf.enable = BME68X_ENABLE;
+    heatr_conf.heatr_dur = BME68X_HEATR_DUR1;
+    heatr_conf.heatr_temp = BME68X_HIGH_TEMP;
+    rslt = bme68x_set_heatr_conf(BME68X_FORCED_MODE, &heatr_conf, &t_dev);
     if (rslt == DEVICE_OK)
     {
-        /* Set the temperature, pressure and humidity & filter settings */
-        conf.os_hum = BME68X_OS_1X;
-        conf.os_pres = BME68X_OS_16X;
-        conf.os_temp = BME68X_OS_2X;
+        rslt = bme68x_set_conf(&conf, &t_dev);
+        if (rslt == DEVICE_OK)
+        {
+            rslt = bme68x_set_op_mode(BME68X_FORCED_MODE, &t_dev); /* Trigger a measurement */
+            if (rslt == DEVICE_OK)
+            {
+                /* Wait for the measurement to complete */
+                platform->delay_us(BME68X_HEATR_DUR1_DELAY);
+                rslt = bme68x_get_data(BME68X_FORCED_MODE, &data[0], &n_fields, &t_dev);
+                if (rslt == DEVICE_OK)
+                {
+                    if ((data[0].idac != 0x00) && (data[0].idac != 0xFF) &&
+                        (data[0].status & BME68X_GASM_VALID_MSK))
+                    {
+                        rslt = DEVICE_OK;
+                    }
+                    else
+                    {
+                        rslt = BME68X_E_SELF_TEST;
+                    }
+                }
+            }
+        }
+    }
 
-        /* Set the remaining gas sensor settings and link the heating profile */
-        heatr_conf.enable = BME68X_ENABLE;
-        heatr_conf.heatr_dur = BME68X_HEATR_DUR1;
-        heatr_conf.heatr_temp = BME68X_HIGH_TEMP;
+    heatr_conf.heatr_dur = BME68X_HEATR_DUR2;
+    while ((rslt == DEVICE_OK) && (i < BME68X_N_MEAS))
+    {
+        if (i % 2 == 0)
+        {
+            heatr_conf.heatr_temp = BME68X_HIGH_TEMP; /* Higher temperature */
+        }
+        else
+        {
+            heatr_conf.heatr_temp = BME68X_LOW_TEMP; /* Lower temperature */
+        }
+
         rslt = bme68x_set_heatr_conf(BME68X_FORCED_MODE, &heatr_conf, &t_dev);
         if (rslt == DEVICE_OK)
         {
@@ -818,59 +874,18 @@ int8_t bme68x_selftest_check(const bme68x_t *bme68x)
                 if (rslt == DEVICE_OK)
                 {
                     /* Wait for the measurement to complete */
-                    platform->delay_us(BME68X_HEATR_DUR1_DELAY);
-                    rslt = bme68x_get_data(BME68X_FORCED_MODE, &data[0], &n_fields, &t_dev);
-                    if (rslt == DEVICE_OK)
-                    {
-                        if ((data[0].idac != 0x00) && (data[0].idac != 0xFF) &&
-                            (data[0].status & BME68X_GASM_VALID_MSK))
-                        {
-                            rslt = DEVICE_OK;
-                        }
-                        else
-                        {
-                            rslt = BME68X_E_SELF_TEST;
-                        }
-                    }
+                    platform->delay_us(BME68X_HEATR_DUR2_DELAY);
+                    rslt = bme68x_get_data(BME68X_FORCED_MODE, &data[i], &n_fields, &t_dev);
                 }
             }
         }
 
-        heatr_conf.heatr_dur = BME68X_HEATR_DUR2;
-        while ((rslt == DEVICE_OK) && (i < BME68X_N_MEAS))
-        {
-            if (i % 2 == 0)
-            {
-                heatr_conf.heatr_temp = BME68X_HIGH_TEMP; /* Higher temperature */
-            }
-            else
-            {
-                heatr_conf.heatr_temp = BME68X_LOW_TEMP; /* Lower temperature */
-            }
+        i++;
+    }
 
-            rslt = bme68x_set_heatr_conf(BME68X_FORCED_MODE, &heatr_conf, &t_dev);
-            if (rslt == DEVICE_OK)
-            {
-                rslt = bme68x_set_conf(&conf, &t_dev);
-                if (rslt == DEVICE_OK)
-                {
-                    rslt = bme68x_set_op_mode(BME68X_FORCED_MODE, &t_dev); /* Trigger a measurement */
-                    if (rslt == DEVICE_OK)
-                    {
-                        /* Wait for the measurement to complete */
-                        platform->delay_us(BME68X_HEATR_DUR2_DELAY);
-                        rslt = bme68x_get_data(BME68X_FORCED_MODE, &data[i], &n_fields, &t_dev);
-                    }
-                }
-            }
-
-            i++;
-        }
-
-        if (rslt == DEVICE_OK)
-        {
-            rslt = analyze_sensor_data(data, BME68X_N_MEAS);
-        }
+    if (rslt == DEVICE_OK)
+    {
+        rslt = analyze_sensor_data(data, BME68X_N_MEAS);
     }
 
     return rslt;
@@ -1255,6 +1270,12 @@ static int8_t read_field_data(uint8_t index, struct bme68x_data *data, bme68x_t 
     uint16_t adc_hum;
     uint16_t adc_gas_res_low, adc_gas_res_high;
     uint8_t tries = 5;
+    platform_t *platform = get_platform();
+
+    if (platform_check_nullptr(platform) != PLATFORM_OK)
+    {
+        return DEVICE_E_UNINIT_PLATFORM;
+    }
 
     while ((tries) && (rslt == DEVICE_OK))
     {
@@ -1415,7 +1436,7 @@ static int8_t read_all_field_data(struct bme68x_data * const data[], bme68x_t *b
 static int8_t set_mem_page(uint8_t reg_addr, bme68x_t *bme68x)
 {
     int8_t rslt;
-    uint8_t reg;
+    uint8_t reg, spi_wr_mask = BME68X_REG_MEM_PAGE | BME68X_SPI_RD_MSK;
     uint8_t mem_page;
     device_t *dev = bme68x->dev;
 
@@ -1436,7 +1457,8 @@ static int8_t set_mem_page(uint8_t reg_addr, bme68x_t *bme68x)
     if (mem_page != bme68x->mem_page)
     {
         bme68x->mem_page = mem_page;
-        bme68x->intf_rslt = dev->read(BME68X_REG_MEM_PAGE | BME68X_SPI_RD_MSK, &reg, 1, dev->addr);
+        bme68x->intf_rslt = dev->write(&spi_wr_mask, 1, dev->fp, dev->addr);
+        bme68x->intf_rslt = dev->read(&reg, 1, dev->fp, dev->addr);
         if (bme68x->intf_rslt != 0)
         {
             rslt = DEVICE_E_COM_FAIL;
@@ -1446,7 +1468,9 @@ static int8_t set_mem_page(uint8_t reg_addr, bme68x_t *bme68x)
         {
             reg = reg & (~BME68X_MEM_PAGE_MSK);
             reg = reg | (bme68x->mem_page & BME68X_MEM_PAGE_MSK);
-            bme68x->intf_rslt = dev->write(BME68X_REG_MEM_PAGE & BME68X_SPI_WR_MSK, &reg, 1, dev->addr);
+            spi_wr_mask = BME68X_REG_MEM_PAGE & BME68X_SPI_WR_MSK;
+            bme68x->intf_rslt = dev->write(&spi_wr_mask, 1, dev->fp, dev->addr);
+            bme68x->intf_rslt = dev->write(&reg, 1, dev->fp, dev->addr);
             if (bme68x->intf_rslt != 0)
             {
                 rslt = DEVICE_E_COM_FAIL;
@@ -1461,7 +1485,7 @@ static int8_t set_mem_page(uint8_t reg_addr, bme68x_t *bme68x)
 static int8_t get_mem_page(bme68x_t *bme68x)
 {
     int8_t rslt;
-    uint8_t reg;
+    uint8_t reg, spi_wr_mask = BME68X_REG_MEM_PAGE | BME68X_SPI_RD_MSK;
     device_t *dev = bme68x->dev;
 
     /* Check for null pointer in the device structure*/
@@ -1471,7 +1495,8 @@ static int8_t get_mem_page(bme68x_t *bme68x)
         return DEVICE_E_NULLPTR;
     }
 
-    bme68x->intf_rslt = dev->read(BME68X_REG_MEM_PAGE | BME68X_SPI_RD_MSK, &reg, 1, dev->addr);
+    bme68x->intf_rslt = dev->write(&spi_wr_mask, 1, dev->fp, dev->addr);
+    bme68x->intf_rslt = dev->read(&reg, 1, dev->fp, dev->addr);
     if (bme68x->intf_rslt != DEVICE_OK)
     {
         rslt = DEVICE_E_COM_FAIL;
@@ -1505,8 +1530,6 @@ static int8_t boundary_check(uint8_t *value, uint8_t max, bme68x_t *bme68x)
 /* This internal API is used to check the bme68x_dev for null pointers */
 static int8_t bme68x_null_ptr_check(const bme68x_t *bme68x)
 {
-    int8_t rslt = DEVICE_OK;
-
     if (bme68x == NULL)
     {
         /* Device structure pointer is not valid */
