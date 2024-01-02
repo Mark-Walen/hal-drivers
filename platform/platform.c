@@ -38,6 +38,7 @@
  */
 #include <stdlib.h>
 #include <string.h>
+#include <stdarg.h>
 #include "platform.h"
 
 platform_t *platform = NULL;
@@ -73,4 +74,33 @@ platform_ret_t platform_init(char *name,
     platform->println = println;
 
     return platform_check_nullptr(platform);
+}
+
+platform_ret_t platform_delay_ms(uint32_t ms)
+{
+    uint32_t p = ms * 1000;
+
+    return platform_delay_us(p);
+}
+
+platform_ret_t platform_delay_us(uint32_t us)
+{    
+    if (platform_check_nullptr(platform))
+    {
+        return PLATFORM_E_NULLPTR;
+    }
+    
+    platform->delay_us(us);
+    return PLATFORM_OK;
+}
+
+platform_ret_t platform_get_timestamp(PLATFORM_TICK_COUNT_TYPE *t)
+{
+    if (platform == NULL || platform->get_timestamp == NULL)
+    {
+        return PLATFORM_E_NULLPTR;
+    }
+
+    *t = platform->get_timestamp();
+    return PLATFORM_OK; 
 }

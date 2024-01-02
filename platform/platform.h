@@ -163,8 +163,10 @@ platform_ret_t platform_init(char *name,
                            platform_delay_us_fptr_t delay_us,
                            platform_printf_fptr_t println);
 platform_ret_t platform_check_nullptr(platform_t *platform);
-
 void *platform_malloc(size_t size);
 void *platform_free(size_t size);
 
+platform_ret_t platform_delay_us(uint32_t us);
+platform_ret_t platform_delay_ms(uint32_t ms);
+platform_ret_t platform_get_timestamp(PLATFORM_TICK_COUNT_TYPE *t);
 #endif
