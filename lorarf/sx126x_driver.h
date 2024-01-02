@@ -249,31 +249,27 @@
 
 enum sx126x_ret_type
 {
-    SX126X_OK,
-    SX126X_E_NULL_PTR,
+    DEVICE_COMMON_RET(SX126X),
     SX126X_E_UNIMPLEMENT_FUNC,
     SX126X_E_BUSY,
     SX126X_E_DEVICE_NOT_FOUND,
     SX126X_BUSY_PIN_NOT_SET,
 } sx126x_ret_type_t;
 
-typedef void (*sx126x_begin_fptr_t)();
+typedef void (*sx126x_begin_fptr_t)(void);
 /**
  * @brief Config chip select pin and busy pin. Begin spi.
 */
-typedef void (*close_spi_fptr_t)();
+typedef void (*close_spi_fptr_t)(void);
 typedef struct sx126x_driver_s sx126x_driver_t;
 
 struct sx126x_driver_s
 {
-    device_t *sx126x_driver;
-    device_gpio_typedef_t *_busy;
+    device_t *dev;
+    device_t *_busy;
+    device_t *_reset;
+    /*! init nss pin, begin pin, reset pin and config spi. */
     sx126x_begin_fptr_t sx126x_begin;
-    device_gpio_control_fptr_t gpio_set_pin;
-    device_gpio_control_fptr_t gpio_reset_pin;
-    device_gpio_control_fptr_t gpio_read_input;
-    device_gpio_config_fptr_t gpio_config_output;
-    device_gpio_config_fptr_t gpio_config_input;
 };
 
 enum SX126X_GPIO_LEVEL
@@ -283,14 +279,13 @@ enum SX126X_GPIO_LEVEL
 };
 
 // extern sx126x_driver_t sx126x_drv;
-
-SX126X_RET_TYPE sx126x_set_pins(sx126x_driver_t *sx126x_drv, device_gpio_typedef_t *busy,
-                                     device_gpio_typedef_t *nss);
-SX126X_RET_TYPE sx126x_reset(sx126x_driver_t *sx126x_drv, device_gpio_typedef_t *reset);
-SX126X_RET_TYPE sx126x_busyCheck(sx126x_driver_t *sx126x_drv, uint32_t timeout);
+SX126X_RET_TYPE sx126x_drv_interface_init(sx126x_driver_t *sx126x_drv, device_t *dev);
+SX126X_RET_TYPE sx126x_set_pins(sx126x_driver_t *sx126x_drv, device_t *busy, device_t *reset);
+SX126X_RET_TYPE sx126x_reset(sx126x_driver_t *sx126x_drv);
+SX126X_RET_TYPE sx126x_busy_check(sx126x_driver_t *sx126x_drv, uint32_t timeout);
 // SX126x driver: Operational Modes Commands
-void sx126x_setSleep(sx126x_driver_t *sx126x_drv, uint8_t sleepConfig);
-void sx126x_setStandby(sx126x_driver_t *sx126x_drv, uint8_t standbyMode);
+void sx126x_set_sleep(sx126x_driver_t *sx126x_drv, uint8_t sleep_config);
+void sx126x_set_standby(sx126x_driver_t *sx126x_drv, uint8_t standby_mode);
 void sx126x_setFs(sx126x_driver_t *sx126x_drv);
 void sx126x_setTx(sx126x_driver_t *sx126x_drv, uint32_t timeout);
 void sx126x_setRx(sx126x_driver_t *sx126x_drv, uint32_t timeout);

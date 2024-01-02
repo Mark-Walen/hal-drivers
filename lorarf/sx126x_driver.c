@@ -1,92 +1,91 @@
 #include "sx126x_driver.h"
 
-SX126X_RET_TYPE sx126x_drv_init(sx126x_driver_t *sx126x_drv,
-                                device_gpio_control_fptr_t gpio_set_pin,
-                                device_gpio_control_fptr_t gpio_reset_pin,
-                                device_gpio_control_fptr_t gpio_read_input,
-                                device_gpio_config_fptr_t gpio_config_output,
-                                device_gpio_config_fptr_t gpio_config_input)
+SX126X_RET_TYPE sx126x_drv_interface_init(sx126x_driver_t *sx126x_drv, device_t *dev)
 {
-    if (sx126x_drv == NULL)
+    if (sx126x_drv == NULL || dev == NULL)
     {
-        return SX126X_E_NULL_PTR;
+        return SX126X_E_NULLPTR;
     }
-    sx126x_drv->gpio_set_pin  = gpio_set_pin;
-    sx126x_drv->gpio_reset_pin  = gpio_reset_pin;
-    sx126x_drv->gpio_read_input  = gpio_read_input;
-    sx126x_drv->gpio_config_output  = gpio_config_output;
-    sx126x_drv->gpio_config_input  = gpio_config_input;
 
+    sx126x_drv->dev  = dev;
     return sx126x_drv_null_ptr_check(sx126x_drv);
 }
 
-SX126X_RET_TYPE sx126x_set_pins(sx126x_driver_t *sx126x_drv, device_gpio_typedef_t *busy, device_gpio_typedef_t *nss)
+SX126X_RET_TYPE sx126x_set_pins(sx126x_driver_t *sx126x_drv, device_t *busy, device_t *reset)
 {
     device_t *sx126x_driver;
     SX126X_RET_TYPE ret = sx126x_null_ptr_check(sx126x_drv);
     if (ret != SX126X_OK)
         return ret;
+    SX126X_RET_TYPE ret = device_null_ptr_check(busy);
+    if (ret != SX126X_OK)
+        return ret;
+    SX126X_RET_TYPE ret = device_null_ptr_check(reset);
+    if (ret != SX126X_OK)
+        return ret;
 
-    sx126x_driver = sx126x_drv->sx126x_driver;
-
-    sx126x_driver->addr = (void *)nss;
     sx126x_drv->_busy = busy;
+    sx126x_drv->_reset = reset;
     return SX126X_OK;
 }
 
-SX126X_RET_TYPE sx126x_reset(sx126x_driver_t *sx126x_drv, device_gpio_typedef_t *reset)
+SX126X_RET_TYPE sx126x_reset(sx126x_driver_t *sx126x_drv)
 {
     uint8_t ret;
-    device_t *sx126x_driver;
-
-    if (sx126x_drv->gpio_config_output == NULL)
-    {
-        sx126x_driver->println("If reset pin is not config as ouput mode, please do this first before calling this function");
-    }
-    else if (reset != NULL)
-    {
-        sx126x_drv->gpio_config_output(reset->port, reset->pin);
-    }
+    device_t *dev = sx126x_drv->dev;;
+    device_t *reset = sx126x_drv->_reset;
+    platform_t *plt = get_platform();
 
     ret = sx126x_drv_null_ptr_check(sx126x_drv);
     if (ret != SX126X_OK)
         return ret;
 
-    sx126x_driver = sx126x_drv->sx126x_driver;
-    sx126x_drv->gpio_set_pin(reset->port, reset->pin);
-    sx126x_drv->sx126x_driver->delay_us(100000, NULL);
+    sx126x_drv->_reset = reset;
+
+    ret = device_write_byte(reset, LOW);
+    platform_delay_ms(500);
+    ret = device_write_byte(reset, HIGH);
+    platform_delay_ms(100);
     return SX126X_OK;
 }
 
-SX126X_RET_TYPE sx126x_busyCheck(sx126x_driver_t *sx126x_drv, uint32_t timeout)
+SX126X_RET_TYPE sx126x_busy_check(sx126x_driver_t *sx126x_drv, uint32_t timeout)
 {
     uint8_t ret = sx126x_drv_null_ptr_check(sx126x_drv);
     if (ret != SX126X_OK)
         return ret;
 
-    device_t *sx126x_driver = sx126x_drv->sx126x_driver;
-    device_gpio_typedef_t *busy = sx126x_drv->_busy;
+    uint8_t pin_level;
+    uint32_t tb, ta;        // tick befor, tick after
+    device_t *sx126x_driver = sx126x_drv->dev;
+    device_t *busy = sx126x_drv->_busy;
 
-    uint32_t t = sx126x_driver->get_system_tick_count();
+    ret = platform_get_timestamp(&tb);
+    ta = tb;
 
-    while (sx126x_drv->gpio_read_input(busy->port, busy->pin) == HIGH)
+    ret = device_read_byte(busy, &pin_level);
+    while (pin_level == HIGH)
     {
-        if (sx126x_driver->get_system_tick_count() - t > timeout)
+        ret = device_read_byte(busy, &pin_level);
+        
+        ret = platform_get_timestamp(&ta);
+        if ((ta - timeout) > tb)
         {
             return SX126X_E_BUSY;
         }
     }
+    
     return SX126X_OK;
 }
 
-void sx126x_setSleep(sx126x_driver_t *sx126x_drv, uint8_t sleepConfig)
+void sx126x_set_sleep(sx126x_driver_t *sx126x_drv, uint8_t sleep_config)
 {
-    sx126x_transfer_cmd(sx126x_drv, 0x84, &sleepConfig, 1);
+    sx126x_transfer_cmd(sx126x_drv, 0x84, &sleep_config, 1);
 }
 
-void sx126x_setStandby(sx126x_driver_t *sx126x_drv, uint8_t standbyConfig)
+void sx126x_set_standby(sx126x_driver_t *sx126x_drv, uint8_t standby_mode)
 {
-    sx126x_transfer_cmd(sx126x_drv, 0x80, &standbyConfig, 1);
+    sx126x_transfer_cmd(sx126x_drv, 0x80, &standby_mode, 1);
 }
 
 void sx126x_setFs(sx126x_driver_t *sx126x_drv)
@@ -455,42 +454,32 @@ void sx126x_fixInvertedIq(sx126x_driver_t *sx126x_drv, uint8_t invertIq)
 SX126X_RET_TYPE sx126x_transfer(sx126x_driver_t *sx126x_drv, uint8_t opCode, uint8_t *data, uint8_t nData, uint8_t *address, uint8_t nAddress, bool read)
 {
     device_t *dev;
-    device_gpio_typedef_t *nss;
+    device_t *nss;
     uint8_t ret = SX126X_OK;
 
     ret = sx126x_drv_null_ptr_check(sx126x_drv);
 
-    dev = sx126x_drv->sx126x_driver;
-    nss = (device_gpio_typedef_t *)dev->addr;
+    dev = sx126x_drv->dev;
+    nss = (device_t *) dev->addr;
     if (ret != SX126X_OK)
         return ret;
 
-    if (sx126x_busyCheck(sx126x_drv, SX126X_BUSY_TIMEOUT))
+    if (sx126x_busy_check(sx126x_drv, SX126X_BUSY_TIMEOUT))
         return SX126X_E_BUSY;
 
-    sx126x_drv->gpio_set_pin(nss->port, nss->pin);
-    dev->write(&opCode, 1, NULL);
-    device_transfer(dev, address, nAddress, data, nData, read);
-    sx126x_drv->gpio_reset_pin(nss->port, nss->pin);
-    return SX126X_OK;
+    ret = device_write_byte(nss, HIGH);
+    ret = dev->write(&opCode, 1, dev->fp, dev->addr);
+    ret = device_transfer(dev, address, nAddress, data, nData, read);
+    ret = device_write_byte(nss, LOW);
+    return ret;
 }
 
 SX126X_RET_TYPE sx126x_drv_null_ptr_check(sx126x_driver_t *sx126x_drv)
 {
-    if (sx126x_drv == NULL || null_ptr_check(sx126x_drv->sx126x_driver) == DEVICE_E_NULL_PTR || sx126x_drv->sx126x_driver->addr == NULL || sx126x_drv->sx126x_driver->get_system_tick_count == NULL)
+    if (sx126x_drv == NULL)
     {
-        return SX126X_E_NULL_PTR;
-    }
-
-    if (sx126x_drv->gpio_read_input == NULL || sx126x_drv->gpio_set_pin == NULL || sx126x_drv->gpio_reset_pin == NULL)
-    {
-        return SX126X_E_UNIMPLEMENT_FUNC;
-    }
-
-    if (sx126x_drv->_busy == NULL)
-    {
-        return SX126X_BUSY_PIN_NOT_SET;
+        return SX126X_E_NULLPTR;
     }
     
-    return SX126X_OK;
+    return device_null_ptr_check(sx126x_drv->dev);
 }

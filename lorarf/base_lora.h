@@ -70,5 +70,4 @@ struct base_lora
     status_fptr_t status;
 };
 
-
 #endif
