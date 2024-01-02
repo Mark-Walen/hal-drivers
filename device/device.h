@@ -227,6 +227,8 @@ struct device_info *get_device_info(device_t *device, const char *fmt, ...);
  */
 DEVICE_INTF_RET_TYPE device_null_ptr_check(const device_t *dev);
 
+DEVICE_INTF_RET_TYPE device_write_byte(const device_t *dev, uint8_t data);
+DEVICE_INTF_RET_TYPE device_read_byte(const device_t *dev, uint8_t *data);
 /**
  *  @brief A safe check wrapper device.read function
  *  @param[in] device       : Structure instance of device
