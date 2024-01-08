@@ -5,7 +5,7 @@ static void _irqSetup(sx126x_t lora, uint16_t irqMask);
 
 SX126X_RET_TYPE sx126x_init(sx126x_t *lora)
 {
-    if (lora == NULL) return SX126X_E_NULL_PTR;
+    if (lora == NULL) return SX126X_E_NULLPTR;
     
     lora->_sf = 7;
     lora->_bw = 125000;
@@ -26,34 +26,16 @@ SX126X_RET_TYPE begin(sx126x_t *lora)
     sx126x_driver_t *sx126x_drv = lora->sx126x_drv;
     if (sx126x_drv == NULL)
     {
-        return SX126X_E_NULL_PTR;
-    }
-
-    if (lora->_irq != NULL && sx126x_drv->gpio_config_input != NULL) {
-        sx126x_drv->gpio_config_input(lora->_irq->port, lora->_irq->pin);
-    }
-
-    if (lora->_txen != NULL && sx126x_drv->gpio_config_input != NULL) {
-        sx126x_drv->gpio_config_input(lora->_txen->port, lora->_txen->pin);
-    }
-
-    if (lora->_irq != NULL && sx126x_drv->gpio_config_input != NULL) {
-        sx126x_drv->gpio_config_input(lora->_rxen->port, lora->_rxen->pin);
+        return SX126X_E_NULLPTR;
     }
 
     lora->_dio = SX126X_PIN_RF_IRQ;
 
-    // begine spi and perform device reset
-    if (sx126x_drv->sx126x_begin == NULL)
-    {
-        sx126x_drv->sx126x_driver->println("Please ensure nss pin, busy pin and spi are initialized Properly");
-    }
-    else
-    {
+    // do not forget config nss, busy and reset pin
+    if (sx126x_drv->sx126x_begin != NULL)
         sx126x_drv->sx126x_begin();
-    }
-
-    sx126x_reset(sx126x_drv, lora->_reset);
+    // perform device reset
+    sx126x_reset(sx126x_drv);
 
     // check if device connect and set modem to LoRa
     sx126x_setStandby(sx126x_drv, SX126X_STANDBY_RC);
@@ -70,11 +52,9 @@ SX126X_RET_TYPE begin(sx126x_t *lora)
  * @param[in] txen: defaulat NULL
  * @param[in] rxen: default NULL
 */
-SX126X_RET_TYPE begin_set_pins(sx126x_t *lora, device_gpio_typedef_t *nss, device_gpio_typedef_t *reset,
-                               device_gpio_typedef_t *busy, device_gpio_typedef_t *irq, device_gpio_typedef_t *txen,
-                               device_gpio_typedef_t *rxen)
+SX126X_RET_TYPE begin_set_pins(sx126x_t *lora, device_t *spidev, device_t *reset, device_t *busy, device_t *irq, device_t *txen, device_t *rxen)
 {
-    set_pins(lora, nss, reset, busy, irq, txen, rxen);
+    set_pins(lora, spidev, reset, busy, irq, txen, rxen);
     return begin(lora);
 }
 
@@ -85,7 +65,7 @@ void end(sx126x_t lora, close_spi_fptr_t close_spi)
 
 bool reset(sx126x_t lora)
 {
-    sx126x_reset(lora.sx126x_drv, lora._reset);
+    sx126x_reset(lora.sx126x_drv);
     return sx126x_busyCheck(lora.sx126x_drv, SX126X_BUSY_TIMEOUT) == SX126X_OK;
 }
 
@@ -97,22 +77,23 @@ void sleep(sx126x_t lora, uint8_t option)
     uint8_t ret = SX126X_OK;
     standby(lora, SX126X_STANDBY_RC);
     sx126x_setSleep(lora.sx126x_drv, option);
-    ret = null_ptr_check(lora.sx126x_drv->sx126x_driver);
-    if (ret != SX126X_OK)
-    {
-        lora.sx126x_drv->sx126x_driver->delay_us(500, NULL);
-    }    
+    platform_delay_ms(500);
 }
 
 SX126X_RET_TYPE wake(sx126x_t lora)
 {
+    SX126X_RET_TYPE ret;
     sx126x_driver_t *sx126x_drv = lora.sx126x_drv;
-    uint8_t ret = sx126x_drv_null_ptr_check(sx126x_drv);
-    device_gpio_typedef_t *nss = (device_gpio_typedef_t *) sx126x_drv->sx126x_driver->addr;
-    if (ret != SX126X_OK) return ret;
+    device_t *dev = sx126x_drv->dev;
+    device_t *nss = dev->addr;
+
+    ret = sx126x_drv_null_ptr_check(sx126x_drv);
+    if (ret != SX126X_OK)
+    {
+        return ret;
+    }
     
-    sx126x_drv->gpio_set_pin(nss->port, nss->port);
-    return SX126X_OK;
+    return  device_write_byte(nss, HIGH);
 }
 
 /**
@@ -143,11 +124,12 @@ uint8_t getMode(sx126x_t lora)
     return mode & 0x70;
 }
 
-void set_pins(sx126x_t *lora, device_gpio_typedef_t *nss, device_gpio_typedef_t *reset,
-              device_gpio_typedef_t *busy, device_gpio_typedef_t *irq,
-              device_gpio_typedef_t *txen, device_gpio_typedef_t *rxen)
+void set_pins(sx126x_t *lora, device_t *spidev, device_t *reset,
+              device_t *busy, device_t *irq,
+              device_t *txen, device_t *rxen)
 {
-    sx126x_set_pins(lora->sx126x_drv, busy, nss);
+    sx126x_drv_interface_init(lora->sx126x_drv, spidev);
+    sx126x_set_pins(lora->sx126x_drv, busy, reset);
     lora->_reset = reset;
     lora->_irq = irq;
     lora->_txen = txen;
@@ -476,9 +458,9 @@ void beginPacket(sx126x_t lora)
     sx126x_setBufferBaseAddress(lora.sx126x_drv, lora._bufferIndex, lora._bufferIndex + 0xFF);
     
     // set txen pin to low and rxen pin to high
-    if ((lora._rxen != NULL) && (lora._txen != NULL) && (sx126x_drv_null_ptr_check(lora.sx126x_drv) == SX126X_OK)) {        
-        lora.sx126x_drv->gpio_reset_pin(lora._rxen->port, lora._rxen->pin);
-        lora.sx126x_drv->gpio_set_pin(lora._txen->port, lora._txen->pin);
+    if ((lora._rxen != NULL) && (lora._txen != NULL) && (sx126x_drv_null_ptr_check(lora.sx126x_drv) == SX126X_OK)) {
+        device_write_byte(lora._rxen, LOW);
+        device_write_byte(lora._txen, HIGH);
         lora._pinToLow = lora._txen;
     }
     
@@ -580,9 +562,9 @@ bool request(sx126x_t lora, uint32_t timeout)
     }
 
     // set txen pin to low and rxen pin to high
-    if ((lora._rxen != NULL) && (lora._txen != NULL) && (sx126x_drv_null_ptr_check(lora.sx126x_drv) == SX126X_OK)) {        
-        lora.sx126x_drv->gpio_reset_pin(lora._txen->port, lora._txen->pin);
-        lora.sx126x_drv->gpio_set_pin(lora._rxen->port, lora._rxen->pin);
+    if ((lora._rxen != NULL) && (lora._txen != NULL) && (sx126x_drv_null_ptr_check(lora.sx126x_drv) == SX126X_OK)) {
+        device_write_byte(lora._txen, LOW);
+        device_write_byte(lora._rxen, HIGH);
         lora._pinToLow = lora._rxen;
     }
 
@@ -619,8 +601,8 @@ bool listen(sx126x_t lora, uint32_t rxPeriod, uint32_t sleepPeriod)
 
     // set txen pin to low and rxen pin to high
     if ((lora._rxen != NULL) && (lora._txen != NULL) && (sx126x_drv_null_ptr_check(lora.sx126x_drv) == SX126X_OK)) {        
-        lora.sx126x_drv->gpio_reset_pin(lora._txen->port, lora._txen->pin);
-        lora.sx126x_drv->gpio_set_pin(lora._rxen->port, lora._rxen->pin);
+        device_write_byte(lora._txen, LOW);
+        device_write_byte(lora._rxen, HIGH);
         lora._pinToLow = lora._rxen;
     }
 
@@ -706,7 +688,7 @@ bool wait(sx126x_t lora, uint32_t timeout, void (*yield)())
     uint8_t ret = sx126x_drv_null_ptr_check(sx126x_drv);
     if (ret != SX126X_OK) return ret;
     
-    device_get_system_tick_count_fptr_t millis = sx126x_drv->sx126x_driver->get_system_tick_count;
+    platform_get_timestamp_fptr_t millis = get_platform()->get_timestamp;
     uint32_t t = millis();
     while (irqStat == 0x0000 && lora._statusIrq == 0x0000) {
         // only check IRQ status register for non interrupt operation
@@ -722,11 +704,11 @@ bool wait(sx126x_t lora, uint32_t timeout, void (*yield)())
     } else if (lora._statusWait == SX126X_STATUS_TX_WAIT) {
         // for transmit, calculate transmit time and set back txen pin to low
         lora._transmitTime = millis() -lora. _transmitTime;
-        if (lora._txen != NULL) sx126x_drv->gpio_reset_pin(lora._txen->port, lora._txen->pin);
+        if (lora._txen != NULL) device_write_byte(lora._txen, LOW);
     } else if (lora._statusWait == SX126X_STATUS_RX_WAIT) {
         // for receive, get received payload length and buffer index and set back rxen pin to low
         sx126x_getRxBufferStatus(sx126x_drv, &lora._payloadTxRx, &lora._bufferIndex);
-        if (lora._rxen != NULL) lora.sx126x_drv->gpio_reset_pin(lora._rxen->port, lora._rxen->pin);
+        if (lora._rxen != NULL) device_write_byte(lora._rxen, LOW);
         sx126x_fixRxTimeout(sx126x_drv);
     } else if (lora._statusWait == SX126X_STATUS_RX_CONTINUOUS) {
         // for receive continuous, get received payload length and buffer index and clear IRQ status
@@ -815,9 +797,9 @@ uint32_t random(sx126x_t lora)
     // generate random number from register and previous random number
     uint8_t buf[4];
     uint8_t ret = sx126x_drv_null_ptr_check(lora.sx126x_drv);
-    device_get_system_tick_count_fptr_t millis;
+    platform_get_timestamp_fptr_t millis;
     if (ret != SX126X_OK) return 0;
-    millis = lora.sx126x_drv->sx126x_driver->get_system_tick_count;
+    millis = get_platform()->get_timestamp;
     
     sx126x_readRegister(lora.sx126x_drv, SX126X_REG_RANDOM_NUMBER_GEN, buf, 4);
     uint32_t number = ((uint32_t) buf[0] << 24) | ((uint32_t) buf[1] << 16) | ((uint32_t) buf[2] << 8) | ((uint32_t) buf[0]);
@@ -849,14 +831,14 @@ void _interruptTx(sx126x_t lora)
 {
     sx126x_driver_t *sx126x_drv = lora.sx126x_drv;
     uint8_t ret = sx126x_drv_null_ptr_check(sx126x_drv);
-    device_get_system_tick_count_fptr_t millis;
-    if (ret != SX126X_OK) return;
-    millis = sx126x_drv->sx126x_driver->get_system_tick_count;
+    platform_get_timestamp_fptr_t millis;
+    if (ret != SX126X_OK) return 0;
+    millis = get_platform()->get_timestamp;
     // calculate transmit time
     lora._transmitTime = millis() - lora._transmitTime;
 
     // set back txen pin to low and detach interrupt
-    if (lora._pinToLow != NULL) sx126x_drv->gpio_reset_pin(lora._pinToLow->port, lora._pinToLow->pin);
+    if (lora._pinToLow != NULL) device_write_byte(lora._pinToLow, LOW);
     // detachInterrupt(_irqStatic);
 
     // store IRQ status
@@ -876,7 +858,7 @@ void _interruptRx(sx126x_t lora)
     uint8_t ret = sx126x_drv_null_ptr_check(sx126x_drv);
     if (ret != SX126X_OK) return;
     // set back rxen pin to low and detach interrupt
-    if (lora._pinToLow != NULL) sx126x_drv->gpio_reset_pin(lora._pinToLow->port, lora._pinToLow->pin);
+    if (lora._pinToLow != NULL) device_write_byte(lora._pinToLow, LOW);
     // detachInterrupt(_irqStatic);
     sx126x_fixRxTimeout(sx126x_drv);
 
@@ -929,7 +911,7 @@ SX126X_RET_TYPE sx126x_null_ptr_check(sx126x_t *lora)
 {
     if (lora == NULL || lora->_reset == NULL || sx126x_drv_null_ptr_check(lora->sx126x_drv))
     {
-        return SX126X_E_NULL_PTR;
+        return SX126X_E_NULLPTR;
     }
     return SX126X_OK;    
 }

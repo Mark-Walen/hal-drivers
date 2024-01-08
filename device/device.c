@@ -286,6 +286,28 @@ DEVICE_INTF_RET_TYPE device_read_byte(const device_t *dev, uint8_t *data)
     return dev->read(data, 1, dev->fp, dev->addr);
 }
 
+DEVICE_INTF_RET_TYPE device_write(const device_t *dev, uint8_t *data, size_t size)
+{
+    DEVICE_INTF_RET_TYPE ret = device_null_ptr_check(dev);
+    if (ret != DEVICE_OK)
+    {
+        return ret;
+    }
+    
+    return dev->write(data, size, dev->fp, dev->addr);
+}
+
+DEVICE_INTF_RET_TYPE device_read(const device_t *dev, uint8_t *data, size_t size)
+{
+    DEVICE_INTF_RET_TYPE ret = device_null_ptr_check(dev);
+    if (ret != DEVICE_OK)
+    {
+        return ret;
+    }
+    
+    return dev->read(data, size, dev->fp, dev->addr);
+}
+
 DEVICE_INTF_RET_TYPE device_transfer(device_t *dev,
                                  uint8_t *reg_addr,
                                  uint16_t n_address,
@@ -309,5 +331,6 @@ DEVICE_INTF_RET_TYPE device_transfer(device_t *dev,
     data = malloc(sizeof(uint8_t)*data_size);
     ret = transfer(data, data_size, dev->fp, dev->addr);
     free(data);
+    data = NULL;
     return ret;
 }

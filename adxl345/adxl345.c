@@ -83,20 +83,18 @@ uint8_t adxl345_get_register_value(adxl345_t *adxl345, uint8_t register_address)
 	device_t *dev = adxl345->dev;
 	int status = 0;
 
-	#if (defined(ADXL345_COMM_TYPE)) && (ADXL345_COMM_TYPE == ADXL345_SPI_COMM)
-		uint8_t gpio_level = 0;
-		device_t *nss = (device_t *) dev->addr;
-		register_address = ADXL345_SPI_READ | register_address;
-		
-		nss->write(&gpio_level, 1, nss->fp, nss->addr);
-		dev->write(&register_address, 1, dev->fp, dev->addr);
-		dev->read(&register_value, 1, dev->fp, dev->addr);
-		gpio_level = 1;
-		nss->write(&gpio_level, 1, nss->fp, nss->addr);
-	#else
-		status = dev->write(&register_address, 1, dev->fp, dev->addr);
-		status = dev->read(&register_value, 1, dev->fp, dev->addr);
-	#endif
+#if (defined(ADXL345_COMM_TYPE)) && (ADXL345_COMM_TYPE == ADXL345_SPI_COMM)
+	device_t *nss = (device_t *) dev->addr;
+	register_address = ADXL345_SPI_READ | register_address;
+	
+	device_write_byte(nss, 0);
+	device_write_byte(dev, register_address);
+	device_read_byte(dev, register_value);
+	device_write_byte(nss, 1);
+#else
+	status = device_write_byte(dev, register_address);
+	status = device_read_byte(dev, &register_value);
+#endif
 	return register_value;
 }
 
@@ -115,22 +113,19 @@ void adxl345_set_register_value(adxl345_t *adxl345,
 	uint8_t data_buffer[2] = {0, 0};
 	device_t *dev = adxl345->dev;
 
-	#if (defined(ADXL345_COMM_TYPE)) && (ADXL345_COMM_TYPE== ADXL345_SPI_COMM)
-		uint8_t gpio_level = 0;
-		device_t *nss = (device_t *) dev->addr;
-		data_buffer[0] = ADXL345_SPI_WRITE | register_address;
-		data_buffer[1] = register_value;
-		
-		nss->write(&gpio_level, 1, nss->fp, nss->addr);
-		dev->write(&register_address, 1, dev->fp, dev->addr);
-		dev->read(&register_value, 1, dev->fp, dev->addr);
-		gpio_level = 1;
-		nss->write(&gpio_level, 1, nss->fp, nss->addr);
-	#else
-		data_buffer[0] = register_address;
-		data_buffer[1] = register_value;
-		dev->write(data_buffer, 2, dev->fp, dev->addr);
-	#endif
+#if (defined(ADXL345_COMM_TYPE)) && (ADXL345_COMM_TYPE== ADXL345_SPI_COMM)
+	device_t *nss = (device_t *) dev->addr;
+	data_buffer[0] = ADXL345_SPI_WRITE | register_address;
+	data_buffer[1] = register_value;
+	
+	device_write_byte(nss, 0);
+	device_write(dev, data_buffer, 2);
+	device_write_byte(nss, 1);
+#else
+	data_buffer[0] = register_address;
+	data_buffer[1] = register_value;
+	device_write(dev, data_buffer, 2);
+#endif
 }
 
 /***************************************************************************//**
@@ -229,17 +224,13 @@ void adxl345_get_xyz(adxl345_t *adxl345,
 				 ADXL345_SPI_MB |
 				 first_reg_address;
 		
-		nss->write(&gpio_level, 1, nss->fp, nss->addr);
-		dev->write(read_buffer, 7, dev->fp, dev->addr);
-		dev->read(&register_value, 1, dev->fp, dev->addr);
-		gpio_level = 1;
-		nss->write(&gpio_level, 1, nss->fp, nss->addr);
-		spi_transfer(read_buffer,
-					 read_buffer,
-					 7);
+		device_write_byte(nss, 0);
+		device_write(dev, read_buffer, 7);
+		device_read(dev, read_buffer, 7);
+		device_write_byte(nss, 1);
 	#else
-		dev->write(&first_reg_address, 1, dev->fp, dev->addr);
-		dev->read(read_buffer + 1, 6, dev->fp, dev->addr);
+		device_write_byte(dev, first_reg_address);
+		device_read(dev, read_buffer + 1, 6);
 	#endif
 	/* x = ((ADXL345_DATAX1) << 8) + ADXL345_DATAX0 */
 	*x = ((int16_t)read_buffer[2] << 8) + read_buffer[1];

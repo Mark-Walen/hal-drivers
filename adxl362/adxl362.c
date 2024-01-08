@@ -42,7 +42,6 @@
 /******************************************************************************/
 #include <stdlib.h>
 #include "adxl362.h"
-#include "stdlib.h"
 
 /******************************************************************************/
 /************************ Functions Definitions *******************************/
@@ -95,6 +94,7 @@ DEVICE_INTF_RET_TYPE adxl362_get_id(adxl362_t *adxl362)
     if (ret != DEVICE_OK) return ret;
 
 	adxl362_get_register_value(adxl362, &reg_value, ADXL362_REG_PARTID, 1);
+	get_platform()->println("%x\r\n", reg_value);
 	if((reg_value != ADXL362_PART_ID)) return DEVICE_E_NOT_FOUND;
 	config_device_info(adxl362->dev, "%n%i%c", "adxl362", SPI, reg_value);
 
@@ -117,7 +117,6 @@ void adxl362_set_register_value(adxl362_t *adxl362, uint16_t register_value,
 	(void) bytes_number;
 	if (adxl362_null_ptr_check(adxl362) != DEVICE_OK) return;
 	
-	uint8_t gpio_level = 0;
 	uint8_t buffer[4] = {0, 0, 0, 0};
 	device_t *dev = adxl362->dev;
 	device_t *nss = (device_t *) dev->addr;
@@ -127,10 +126,9 @@ void adxl362_set_register_value(adxl362_t *adxl362, uint16_t register_value,
 	buffer[2] = (register_value & 0x00FF);
 	buffer[3] = (register_value >> 8);
 	
-	nss->write(&gpio_level, 1, nss->fp, nss->addr);
-	dev->write(buffer, 4, dev->fp, dev->addr);
-	gpio_level = 1;
-	nss->write(&gpio_level, 1, nss->fp, nss->addr);
+	device_write_byte(nss, 0);
+	device_write(dev, buffer, 4);
+	device_write_byte(nss, 0);
 }
 
 /***************************************************************************
@@ -146,7 +144,6 @@ void adxl362_set_register_value(adxl362_t *adxl362, uint16_t register_value,
 void adxl362_get_register_value(adxl362_t *adxl362, uint8_t *read_data,
 								uint8_t  register_address, uint8_t  bytes_number)
 {
-	uint8_t gpio_level = 0;
 	uint8_t buffer[2];
 	device_t *dev = adxl362->dev;
 	device_t *nss = (device_t *) dev->addr;
@@ -156,11 +153,10 @@ void adxl362_get_register_value(adxl362_t *adxl362, uint8_t *read_data,
 	buffer[0] = ADXL362_READ_REG;
 	buffer[1] = register_address;
 
-	nss->write(&gpio_level, 1, nss->fp, nss->addr);
-	dev->write(buffer, 2, dev->fp, dev->addr);
-	dev->read(read_data, bytes_number, dev->fp, dev->addr);
-	gpio_level = 1;
-	nss->write(&gpio_level, 1, nss->fp, nss->addr);
+	device_write_byte(nss, 0);
+	device_write(dev, buffer, 2);
+	device_read(dev, read_data, bytes_number);
+	device_write_byte(nss, 1);
 }
 
 /***************************************************************************
@@ -179,16 +175,13 @@ void adxl362_get_fifo_value(adxl362_t *adxl362,
 	if (adxl362_null_ptr_check(adxl362) != DEVICE_OK || bytes_number > 512) return;
 	
 	uint8_t spi_cmd = ADXL362_WRITE_FIFO;
-	uint8_t gpio_level = 0;
 	device_t *dev = adxl362->dev;
 	device_t *nss = (device_t *) dev->addr;
 
-	nss->write(&gpio_level, 1, nss->fp, nss->addr);
-	dev->write(&spi_cmd, 1, dev->fp, dev->addr);
-	dev->read(buffer, bytes_number, dev->fp, dev->addr);
-	gpio_level = 1;
-	nss->write(&gpio_level, 1, nss->fp, nss->addr);
-	
+	device_write_byte(nss, 0);
+	device_write(dev, &spi_cmd, 1);
+	device_read(dev, buffer, bytes_number);
+	device_write_byte(nss, 1);
 }
 
 /***************************************************************************

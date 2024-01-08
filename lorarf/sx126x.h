@@ -45,7 +45,7 @@ struct sx126x
     // sx126x_driver
     sx126x_driver_t *sx126x_drv;
 
-    device_gpio_typedef_t *_reset, *_irq, *_txen, *_rxen, *_pinToLow;
+    device_t *_reset, *_irq, *_txen, *_rxen, *_pinToLow;
     // private variables
     int8_t _dio;
     uint8_t _statusWait;
@@ -86,9 +86,7 @@ struct sx126x
 */
 SX126X_RET_TYPE sx126x_null_ptr_check(sx126x_t *lora);
 SX126X_RET_TYPE begin(sx126x_t *lora);
-SX126X_RET_TYPE begin_set_pins(sx126x_t *lora, device_gpio_typedef_t *nss, device_gpio_typedef_t *reset,
-                               device_gpio_typedef_t *busy, device_gpio_typedef_t *irq,
-                               device_gpio_typedef_t *txen, device_gpio_typedef_t *rxen);
+SX126X_RET_TYPE begin_set_pins(sx126x_t *lora, device_t *spidev, device_t *reset, device_t *busy, device_t *irq, device_t *txen, device_t *rxen);
 void end(sx126x_t lora, close_spi_fptr_t close_spi);
 bool reset(sx126x_t lora);
 void sleep(sx126x_t lora, uint8_t option);
@@ -99,9 +97,9 @@ void setFallbackMode(sx126x_t lora, uint8_t fallbackMode);
 uint8_t getMode(sx126x_t lora);
 
 // Hardware configuration methods
-void set_pins(sx126x_t *lora, device_gpio_typedef_t *nss, device_gpio_typedef_t *reset,
-              device_gpio_typedef_t *busy, device_gpio_typedef_t *irq,
-              device_gpio_typedef_t *txen, device_gpio_typedef_t *rxen);
+void set_pins(sx126x_t *lora, device_t *spidev, device_t *reset,
+              device_t *busy, device_t *irq,
+              device_t *txen, device_t *rxen);
 void setRfIrqPin(sx126x_t lora, int8_t dioPinSelect);
 void setDio2RfSwitch(sx126x_t lora, bool enable);
 void setDio3TcxoCtrl(sx126x_t lora, uint8_t tcxoVoltage, uint32_t delayTime);
@@ -124,8 +122,8 @@ void setLdroEnable(sx126x_t lora, bool ldro);
 void setHeaderType(sx126x_t lora, uint8_t headerType);
 void setPreambleLength(sx126x_t lora, uint16_t preambleLength);
 void setPayloadLength(sx126x_t lora, uint8_t payloadLength);
-void setCrcEnable(sx126x_t lora, bool crcType=true);
-void setInvertIq(sx126x_t lora, bool invertIq=true);
+void setCrcEnable(sx126x_t lora, bool crcType);
+void setInvertIq(sx126x_t lora, bool invertIq);
 void setSyncWord(sx126x_t lora, uint16_t syncWord);
 void setFskModulation(sx126x_t lora, uint32_t br, uint8_t pulseShape, uint8_t bandwidth, uint32_t Fdev);
 void setFskPacket(sx126x_t lora, uint16_t preambleLength, uint8_t preambleDetector, uint8_t syncWordLength, uint8_t addrComp, uint8_t packetType, uint8_t payloadLength, uint8_t crcType, uint8_t whitening);
@@ -147,13 +145,13 @@ void put(sx126x_t lora, void *data, const uint8_t length);
 void onTransmit(sx126x_t lora, void(*callback)());
 
 // Receive related methods
-bool request(sx126x_t lora, uint32_t timeout=SX126X_RX_SINGLE);
+bool request(sx126x_t lora, uint32_t timeout);
 bool listen(sx126x_t lora, uint32_t rxPeriod, uint32_t sleepPeriod);
 uint8_t available(sx126x_t lora);
 uint8_t read_byte(sx126x_t lora);
 uint8_t read_ubuffer(sx126x_t lora, uint8_t* data, uint8_t length);
 uint8_t read_sbuffer(sx126x_t lora, char* data, uint8_t length);
-void purge(sx126x_t lora, uint8_t length=0);
+void purge(sx126x_t lora, uint8_t length);
 uint8_t get(sx126x_t lora, void *data, const uint8_t length);
 void onReceive(sx126x_t lora, void(*callback)());
 

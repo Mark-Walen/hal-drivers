@@ -247,14 +247,13 @@ int8_t bme68x_set_regs(const uint8_t *reg_addr, const uint8_t *reg_data, uint32_
 
     if (dtype == SPI)
     {
-        nss->write(&gpio_level, 1, nss->fp, nss->addr);
-        bme68x->intf_rslt = dev->write(tmp_buff, 2 * len, dev->fp, dev->addr);
-        gpio_level = 1;
-        nss->write(&gpio_level, 1, nss->fp, nss->addr);
+        device_write_byte(nss, 0);
+        bme68x->intf_rslt = device_write(dev, tmp_buff, 2 * len);
+        device_write_byte(nss, 1);
     }
     else
     {
-        bme68x->intf_rslt = dev->write(tmp_buff, 2 * len, dev->fp, dev->addr);
+        bme68x->intf_rslt = device_write(dev, tmp_buff, 2 * len);
     }
 
     if (bme68x->intf_rslt != DEVICE_OK)
@@ -271,7 +270,6 @@ int8_t bme68x_set_regs(const uint8_t *reg_addr, const uint8_t *reg_data, uint32_
 int8_t bme68x_get_regs(uint8_t reg_addr, uint8_t *reg_data, uint32_t len, bme68x_t *bme68x)
 {
     int8_t rslt;
-    uint8_t gpio_level = 0;
     device_t *dev = bme68x->dev;
     device_type_t dtype;
 
@@ -293,16 +291,15 @@ int8_t bme68x_get_regs(uint8_t reg_addr, uint8_t *reg_data, uint32_t len, bme68x
         {
             reg_addr = reg_addr | BME68X_SPI_RD_MSK;
         }
-        nss->write(&gpio_level, 1, nss->fp, nss->addr);
-        bme68x->intf_rslt = dev->write(&reg_addr, 1, dev->fp, dev->addr);
-        bme68x->intf_rslt = dev->read(reg_data, len, dev->fp, dev->addr);
-        gpio_level = 1;
-        nss->write(&gpio_level, 1, nss->fp, nss->addr);
+        device_write_byte(nss, 0);
+        bme68x->intf_rslt = device_write_byte(dev, reg_addr);
+        bme68x->intf_rslt = device_read(dev, reg_data, len);
+        device_write_byte(nss, 1);
     }
     else
     {
-        bme68x->intf_rslt = dev->write(&reg_addr, 1, dev->fp, dev->addr);
-        bme68x->intf_rslt = dev->read(reg_data, len, dev->fp, dev->addr);
+        bme68x->intf_rslt = device_write_byte(dev, reg_addr);
+        bme68x->intf_rslt = device_read(dev, reg_data, len);
     }
     if (bme68x->intf_rslt != 0)
     {
@@ -1457,8 +1454,8 @@ static int8_t set_mem_page(uint8_t reg_addr, bme68x_t *bme68x)
     if (mem_page != bme68x->mem_page)
     {
         bme68x->mem_page = mem_page;
-        bme68x->intf_rslt = dev->write(&spi_wr_mask, 1, dev->fp, dev->addr);
-        bme68x->intf_rslt = dev->read(&reg, 1, dev->fp, dev->addr);
+        bme68x->intf_rslt = device_write_byte(dev, spi_wr_mask);
+        bme68x->intf_rslt = device_read_byte(dev, &reg);
         if (bme68x->intf_rslt != 0)
         {
             rslt = DEVICE_E_COM_FAIL;
@@ -1469,8 +1466,8 @@ static int8_t set_mem_page(uint8_t reg_addr, bme68x_t *bme68x)
             reg = reg & (~BME68X_MEM_PAGE_MSK);
             reg = reg | (bme68x->mem_page & BME68X_MEM_PAGE_MSK);
             spi_wr_mask = BME68X_REG_MEM_PAGE & BME68X_SPI_WR_MSK;
-            bme68x->intf_rslt = dev->write(&spi_wr_mask, 1, dev->fp, dev->addr);
-            bme68x->intf_rslt = dev->write(&reg, 1, dev->fp, dev->addr);
+            bme68x->intf_rslt = device_write_byte(dev, spi_wr_mask);
+            bme68x->intf_rslt = device_write_byte(dev, reg);
             if (bme68x->intf_rslt != 0)
             {
                 rslt = DEVICE_E_COM_FAIL;
@@ -1495,8 +1492,8 @@ static int8_t get_mem_page(bme68x_t *bme68x)
         return DEVICE_E_NULLPTR;
     }
 
-    bme68x->intf_rslt = dev->write(&spi_wr_mask, 1, dev->fp, dev->addr);
-    bme68x->intf_rslt = dev->read(&reg, 1, dev->fp, dev->addr);
+    bme68x->intf_rslt = device_write_byte(dev, spi_wr_mask);
+    bme68x->intf_rslt = device_read_byte(dev, &reg);
     if (bme68x->intf_rslt != DEVICE_OK)
     {
         rslt = DEVICE_E_COM_FAIL;
