@@ -1,7 +1,7 @@
 #include <stdlib.h>
 #include "sh1106.h"
 
-uint8_t OLED_GRAM[SH1106_PAGE][SH1106_COLUMN];
+static uint8_t OLED_GRAM[SH1106_PAGE][SH1106_COLUMN];
 
 DEVICE_INTF_RET_TYPE sh1106_null_ptr_check(sh1106_t *sh1106)
 {

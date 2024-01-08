@@ -14,10 +14,10 @@ struct ascii_font_s {
   uint8_t *chars;
 };
 
-extern const ascii_font_t afont8x6;
-extern const ascii_font_t afont12x6;
-extern const ascii_font_t afont16x8;
-extern const ascii_font_t afont24x12;
+extern const ascii_font_t afont_8x6;
+extern const ascii_font_t afont_12x6;
+extern const ascii_font_t afont_16x8;
+extern const ascii_font_t afont_24x12;
 
 /**
  * @brief 字体结构体
@@ -32,7 +32,7 @@ struct font_s {
   const ascii_font_t *ascii; // 缺省ASCII字体 当字库中没有对应字符且需要显示ASCII字符时使用
 };
 
-extern const font_t font16x16;
+extern const font_t font_16x16;
 
 /**
  * @brief 图片结构体

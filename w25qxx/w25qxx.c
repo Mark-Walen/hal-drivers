@@ -132,22 +132,17 @@ DEVICE_INTF_RET_TYPE w25qxx_transfer(w25qxx_handle_t *w25qxx, w25qxx_transaction
     device_write_byte(dev, transaction->cmd);
     if (transaction->tx_buffer != NULL && transaction->tx_len != 0)
     {
-        ret = dev->write(transaction->tx_buffer, transaction->tx_len, dev->fp, dev->addr);
+        ret = device_write(dev, transaction->tx_buffer, transaction->tx_len);
         if (ret != W25QXX_OK)
             return ret;
     }
 
     if (transaction->rx_buffer != NULL && transaction->rx_len != 0)
     {
-        ret = dev->read(transaction->rx_buffer, transaction->rx_len, dev->fp, dev->addr);
+        ret = device_read(dev, transaction->rx_buffer, transaction->rx_len);
         if (ret != W25QXX_OK)
             return ret;
     }
-    if (transaction->cmd == W25Q_CMD_RSREG3 && transaction->rx_buffer)
-    {
-        get_platform()->println("%d\r\n", *(uint8_t *)transaction->rx_buffer);
-    }
-    
 
     return device_write_byte(nss, 1);
 }
@@ -155,29 +150,36 @@ DEVICE_INTF_RET_TYPE w25qxx_transfer(w25qxx_handle_t *w25qxx, w25qxx_transaction
 DEVICE_INTF_RET_TYPE w25qxx_send_cmd(w25qxx_handle_t *w25qxx, uint8_t cmd)
 {
     w25qxx_transaction_t transaction = W25QXX_CMD_TRANSACTION_INIT(cmd);
-
+    
+    // platform_log("send cmd: 0x%02x", cmd);
     return w25qxx_transfer(w25qxx, &transaction);
 }
 
 DEVICE_INTF_RET_TYPE w25qxx_write_cmd(w25qxx_handle_t *w25qxx, uint8_t cmd, uint8_t data)
 {
     w25qxx_transaction_t transaction = W25QXX_WRITE_TRANSACTION_INIT(cmd, &data, 1);
+    // platform_log("write cmd: 0x%02x data: 0x%02x", cmd, data);
 
     return w25qxx_transfer(w25qxx, &transaction);
 }
 
 DEVICE_INTF_RET_TYPE w25qxx_read_cmd(w25qxx_handle_t *w25qxx, uint8_t cmd, uint8_t *reg_data)
 {
+    DEVICE_INTF_RET_TYPE ret = DEVICE_OK;
+    *reg_data = W25Q_DUMMY;
     w25qxx_transaction_t transaction = W25QXX_READ_TRANSACTION_INIT(cmd, reg_data, 1);
+    // platform_log("read cmd: 0x%2x data: 0x%2x", cmd, *reg_data);
 
-    return w25qxx_transfer(w25qxx, &transaction);
+    ret = w25qxx_transfer(w25qxx, &transaction);
+    // platform_log("read back cmd: 0x%2x data: 0x%2x", cmd, *reg_data);
+    return ret;
 }
 
 DEVICE_INTF_RET_TYPE w25qxx_read_id_manufacturer(w25qxx_handle_t *w25qxx)
 {
     DEVICE_INTF_RET_TYPE ret = W25QXX_OK;
     uint8_t tx_data[3] = {W25Q_DUMMY, W25Q_DUMMY, 0x00};
-    uint8_t rx_data[2] = {0xFF, 0xFF};
+    uint8_t rx_data[2] = {W25Q_DUMMY, W25Q_DUMMY};
     w25qxx_transaction_t transaction = W25QXX_TRANSACTION_INIT(W25Q_CMD_MANUFACTURER, tx_data, 3, rx_data, 2);
 
     ret = w25qxx_transfer(w25qxx, &transaction);
@@ -540,6 +542,7 @@ DEVICE_INTF_RET_TYPE w25qxx_read_status_register(w25qxx_handle_t *w25qxx, uint8_
 DEVICE_INTF_RET_TYPE w25qxx_write_status_register2(w25qxx_handle_t *w25qxx, w25qxx_sr_t *status_register, uint8_t data)
 {
     DEVICE_INTF_RET_TYPE ret = w25qxx_write_enable(w25qxx);
+    platform_log("status register 1: 0x%02x", w25qxx->status_register1);
 
     if (ret != W25QXX_OK)
         return ret;
@@ -570,6 +573,35 @@ DEVICE_INTF_RET_TYPE w25qxx_write_status_register(w25qxx_handle_t *w25qxx, uint8
 
     return ret;
 }
+
+// DEVICE_INTF_RET_TYPE w25qxx_write_status_register(w25qxx_handle_t *w25qxx, uint8_t select_sr_1_2_3, uint8_t data)
+// {
+//     DEVICE_INTF_RET_TYPE ret = w25qxx_write_enable(w25qxx);
+
+//     switch (select_sr_1_2_3)
+//     {
+//         case 1:
+// 			w25qxx->status_register1 = data;
+// 			w25qxx_write_cmd(w25qxx, W25Q_CMD_WSREG1, data);
+// 			break;
+//         case 2:
+// 			w25qxx->status_register2 = data;
+// 			w25qxx_write_cmd(w25qxx, W25Q_CMD_WSREG2, data);
+// 			break;
+//         case 3:
+// 			w25qxx->status_register3 = data;
+// 			w25qxx_write_cmd(w25qxx, W25Q_CMD_WSREG3, data);
+// 			break;
+//         default: break;
+//     }
+
+//     /* write disable */
+//     ret = w25qxx_write_disable(w25qxx);
+
+//     platform_delay_ms(15);
+
+//     return ret;
+// }
 
 DEVICE_INTF_RET_TYPE w25qxx_volatile_sr_write_status_register2(w25qxx_handle_t *w25qxx, w25qxx_sr_t *status_register, uint8_t data)
 {
@@ -693,7 +725,6 @@ DEVICE_INTF_RET_TYPE w25qxx_wbit(w25qxx_handle_t *w25qxx, w25qxx_srm_t srm, uint
     status_register->sr_cmd += 4;
     ret = w25qxx_read_status_register2(w25qxx, status_register);
     w25qxx_sr_deinit(&status_register);
-    get_platform()->println("%x\r\n", w25qxx->status_register3);
 
     return ret;
 }
@@ -763,19 +794,6 @@ DEVICE_INTF_RET_TYPE w25qxx_wbit_wps(w25qxx_handle_t *w25qxx, w25qxx_srm_t srm, 
 
     return w25qxx_wbit(w25qxx, srm, 3, bit, 2);
 }
-
-// DEVICE_INTF_RET_TYPE w25qxx_wbit_wps(w25qxx_handle_t *w25qxx, w25qxx_srm_t srm, uint8_t bit)
-// {
-//     uint8_t wel = 0;
-//     w25qxx_rbit_wel(w25qxx, &wel);
-//     get_platform()->println("____%d\r\n", wel);
-//     w25qxx_send_cmd(w25qxx, 0x50);
-//     w25qxx_write_cmd(w25qxx, 0x11, bit);
-//     w25qxx_read_status_register(w25qxx, 3);
-//     get_platform()->println("____%d\r\n", w25qxx->status_register3);
-
-//     return W25QXX_OK;
-// }
 
 DEVICE_INTF_RET_TYPE w25qxx_wbit_drv(w25qxx_handle_t *w25qxx, w25qxx_srm_t srm, uint8_t bit)
 {

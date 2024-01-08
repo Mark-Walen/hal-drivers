@@ -104,3 +104,17 @@ platform_ret_t platform_get_timestamp(PLATFORM_TICK_COUNT_TYPE *t)
     *t = platform->get_timestamp();
     return PLATFORM_OK; 
 }
+
+static PLATFORM_PRINTF_RET_TYPE default_print(const char *fmt, ...)
+{
+    return 0;
+}
+
+platform_printf_fptr_t platform_print(void)
+{
+    if (platform == NULL || platform->println == NULL)
+    {
+        return default_print;
+    }
+    return platform->println;
+}

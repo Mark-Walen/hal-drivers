@@ -91,6 +91,12 @@
 #define PLATFORM_GPIO_CONTROL_RET_TYPE int16_t
 #endif
 
+#define platform_log(fmt, ...) \
+    do {    \
+        platform_printf_fptr_t println = platform_print();  \
+        println("(%s:%ld) "fmt"\r\n", __FILE__, __LINE__ ,__VA_ARGS__);    \
+    } while (0);
+
 /*!
  * @brief Sytem tick count function pointer which should be mapped to
  * system tick count function of the user
@@ -169,4 +175,5 @@ void *platform_free(size_t size);
 platform_ret_t platform_delay_us(uint32_t us);
 platform_ret_t platform_delay_ms(uint32_t ms);
 platform_ret_t platform_get_timestamp(PLATFORM_TICK_COUNT_TYPE *t);
+platform_printf_fptr_t platform_print(void);
 #endif
