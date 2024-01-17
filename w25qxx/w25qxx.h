@@ -356,10 +356,10 @@ DEVICE_INTF_RET_TYPE w25qxx_erase_security(w25qxx_handle_t *w25qxx, uint32_t sec
 DEVICE_INTF_RET_TYPE w25qxx_read(w25qxx_handle_t *w25qxx, uint8_t *p_buffer, uint32_t byte_addr, uint16_t num_byte_to_read);
 DEVICE_INTF_RET_TYPE w25qxx_read_security(w25qxx_handle_t *w25qxx, uint8_t *p_buffer, uint32_t byte_addr, uint16_t num_byte_to_read);
 DEVICE_INTF_RET_TYPE w25qxx_read_sfdp(w25qxx_handle_t *w25qxx, uint8_t *p_buffer, uint32_t byte_addr, uint16_t num_byte_to_read);
-DEVICE_INTF_RET_TYPE w25qxx_dir_program_page(w25qxx_handle_t *w25qxx, uint8_t *p_buffer, uint32_t byte_addr, uint16_t num_byte_to_write);
-DEVICE_INTF_RET_TYPE w25qxx_dir_program(w25qxx_handle_t *w25qxx, uint8_t *p_buffer, uint32_t byte_addr, uint32_t num_byte_to_write);
+DEVICE_INTF_RET_TYPE w25qxx_dir_program_page(w25qxx_handle_t *w25qxx, const uint8_t *p_buffer, uint32_t byte_addr, uint16_t num_byte_to_write);
+DEVICE_INTF_RET_TYPE w25qxx_dir_program(w25qxx_handle_t *w25qxx, const uint8_t *p_buffer, uint32_t byte_addr, uint32_t num_byte_to_write);
 DEVICE_INTF_RET_TYPE w25qxx_dir_program_security(w25qxx_handle_t *w25qxx, uint8_t *p_buffer, uint32_t byte_addr, uint16_t num_byte_to_write);
-DEVICE_INTF_RET_TYPE w25qxx_program(w25qxx_handle_t *w25qxx, uint8_t *p_buffer, uint32_t byte_addr, uint32_t num_byte_to_write);
+DEVICE_INTF_RET_TYPE w25qxx_program(w25qxx_handle_t *w25qxx, const uint8_t *p_buffer, uint32_t byte_addr, uint32_t num_byte_to_write);
 DEVICE_INTF_RET_TYPE w25qxx_program_security(w25qxx_handle_t *w25qxx, uint8_t *p_buffer, uint32_t byte_addr, uint16_t num_byte_to_write);
 
 /**
@@ -368,4 +368,6 @@ DEVICE_INTF_RET_TYPE w25qxx_program_security(w25qxx_handle_t *w25qxx, uint8_t *p
 DEVICE_INTF_RET_TYPE w25qxx_query_chip(w25qxx_handle_t *w25qxx);
 DEVICE_INTF_RET_TYPE w25qxx_config(w25qxx_handle_t *w25qxx);
 DEVICE_INTF_RET_TYPE w25qxx_sus_resum_erase_sector(w25qxx_handle_t *w25qxx, uint32_t sector_addr);
+
+void write_status_refister_2(w25qxx_handle_t *w25qxx);
 #endif

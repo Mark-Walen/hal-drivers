@@ -352,9 +352,16 @@ DEVICE_INTF_RET_TYPE w25qxx_write_enable(w25qxx_handle_t *w25qxx)
 {
     DEVICE_INTF_RET_TYPE ret = w25qxx_send_cmd(w25qxx, W25Q_CMD_WEN);
     if (ret != W25QXX_OK)
+    {
         return ret;
-
-    return w25qxx_read_status_register(w25qxx, 1);
+    }
+	
+	do
+	{
+		ret = w25qxx_read_status_register(w25qxx, 1);
+		platform_delay_ms(1);
+	} while((w25qxx->status_register1 & 0x01) == 1);
+    return ret;
 }
 
 /* Write Disable */
@@ -364,7 +371,12 @@ DEVICE_INTF_RET_TYPE w25qxx_write_disable(w25qxx_handle_t *w25qxx)
     if (ret != W25QXX_OK)
         return ret;
 
-    return w25qxx_read_status_register(w25qxx, 1);
+    do
+	{
+		w25qxx_read_status_register(w25qxx, 1);
+		platform_delay_ms(1);
+	} while((w25qxx->status_register1 & 0x01) == 1);
+    return ret;
 }
 
 /* Set 4 bytes address mode */
@@ -542,7 +554,6 @@ DEVICE_INTF_RET_TYPE w25qxx_read_status_register(w25qxx_handle_t *w25qxx, uint8_
 DEVICE_INTF_RET_TYPE w25qxx_write_status_register2(w25qxx_handle_t *w25qxx, w25qxx_sr_t *status_register, uint8_t data)
 {
     DEVICE_INTF_RET_TYPE ret = w25qxx_write_enable(w25qxx);
-    platform_log("status register 1: 0x%02x", w25qxx->status_register1);
 
     if (ret != W25QXX_OK)
         return ret;
@@ -553,6 +564,11 @@ DEVICE_INTF_RET_TYPE w25qxx_write_status_register2(w25qxx_handle_t *w25qxx, w25q
 
     /* write status register */
     ret = w25qxx_write_cmd(w25qxx, status_register->sr_cmd, *status_register->sr);
+	do
+	{
+		w25qxx_read_status_register(w25qxx, 1);
+		platform_delay_ms(1);
+	} while((w25qxx->status_register1 & 0x01) == 1);
 
     ret = w25qxx_write_disable(w25qxx);
 
@@ -641,13 +657,29 @@ void w25qxx_set_factory_write_status_register(w25qxx_handle_t *w25qxx) /* Device
      **/
     w25qxx_write_status_register(w25qxx, 2, 0x02);
 
-    /* Status Register 3 */
+    // /* Status Register 3 */
     w25qxx_write_status_register(w25qxx, 3, 0xE0);
 
-    /* Read Register */
+    // /* Read Register */
     w25qxx_read_status_register(w25qxx, 1);
     w25qxx_read_status_register(w25qxx, 2);
     w25qxx_read_status_register(w25qxx, 3);
+}
+
+void write_status_refister_2(w25qxx_handle_t *w25qxx)
+{
+    w25qxx_send_cmd(w25qxx, W25Q_CMD_WEN);
+    uint8_t tx_data[6] = {W25Q_CMD_WSREG1, 0x00, W25Q_CMD_WSREG2, 0x02, W25Q_CMD_WSREG3, 0x0E};
+    device_t *dev = (device_t *)w25qxx->dev;
+
+    device_write_byte((device_t *)dev->addr, 0);
+    device_write(dev, tx_data, 6);
+    device_write_byte((device_t *)dev->addr, 1);
+
+    w25qxx_send_cmd(w25qxx, W25Q_CMD_WDEN);
+    w25qxx_read_cmd(w25qxx, W25Q_CMD_RSREG1, &w25qxx->status_register1);
+    w25qxx_read_cmd(w25qxx, W25Q_CMD_RSREG2, &w25qxx->status_register2);
+    w25qxx_read_cmd(w25qxx, W25Q_CMD_RSREG3, &w25qxx->status_register3);
 }
 
 DEVICE_INTF_RET_TYPE w25qxx_rbit_wel(w25qxx_handle_t *w25qxx, uint8_t *wel)
@@ -1248,7 +1280,7 @@ DEVICE_INTF_RET_TYPE w25qxx_read_sfdp(w25qxx_handle_t *w25qxx, uint8_t *p_buffer
  * 2. You must ensure that all data within the written address range is 0xFF,
  *    otherwise the data written at a location other than 0xFF will fail.
  **/
-DEVICE_INTF_RET_TYPE w25qxx_dir_program_page(w25qxx_handle_t *w25qxx, uint8_t *p_buffer, uint32_t byte_addr, uint16_t num_byte_to_write)
+DEVICE_INTF_RET_TYPE w25qxx_dir_program_page(w25qxx_handle_t *w25qxx, const uint8_t *p_buffer, uint32_t byte_addr, uint16_t num_byte_to_write)
 {
     uint16_t rem_page;
     DEVICE_INTF_RET_TYPE ret = W25QXX_OK;
@@ -1306,7 +1338,7 @@ DEVICE_INTF_RET_TYPE w25qxx_dir_program_page(w25qxx_handle_t *w25qxx, uint8_t *p
  * 2. You must ensure that all data within the written address range is 0xFF,
  *    otherwise the data written at a location other than 0xFF will fail.
  **/
-DEVICE_INTF_RET_TYPE w25qxx_dir_program(w25qxx_handle_t *w25qxx, uint8_t *p_buffer, uint32_t byte_addr, uint32_t num_byte_to_write)
+DEVICE_INTF_RET_TYPE w25qxx_dir_program(w25qxx_handle_t *w25qxx, const uint8_t *p_buffer, uint32_t byte_addr, uint32_t num_byte_to_write)
 {
     uint16_t rem_page;
     DEVICE_INTF_RET_TYPE ret = W25QXX_OK;
@@ -1395,7 +1427,7 @@ DEVICE_INTF_RET_TYPE w25qxx_dir_program_security(w25qxx_handle_t *w25qxx, uint8_
     return w25qxx_is_status(w25qxx, W25Qxx_STATUS_IDLE | W25Qxx_STATUS_SUSPEND, w25qxx->info.progr_max_time_page);
 }
 
-DEVICE_INTF_RET_TYPE w25qxx_program(w25qxx_handle_t *w25qxx, uint8_t *p_buffer, uint32_t byte_addr, uint32_t num_byte_to_write)
+DEVICE_INTF_RET_TYPE w25qxx_program(w25qxx_handle_t *w25qxx, const uint8_t *p_buffer, uint32_t byte_addr, uint32_t num_byte_to_write)
 {
     uint32_t num_sec = 0;
     uint16_t off_sec = 0;
