@@ -1,7 +1,55 @@
 #include <stdlib.h>
 #include "sh1106.h"
 
-static uint8_t OLED_GRAM[SH1106_PAGE][SH1106_COLUMN];
+#define sh1106_send_data(sh1106, data, len)  sh1106_write(sh1106, data, len, 1)
+#define sh1106_send_cmd_seq(sh1106, data, len)  sh1106_write(sh1106, data, len, 0)
+
+static uint8_t **sh1106_gram_create(uint8_t page, uint8_t column);
+static void sh1106_gram_destroy(uint8_t **gram, uint8_t page);
+
+static uint8_t **sh1106_gram_create(uint8_t page, uint8_t column)
+{
+    uint8_t **gram = (uint8_t **)malloc(sizeof(uint8_t *) * page);
+
+    if (gram == NULL)
+    {
+        return NULL;
+    }
+    
+    for (size_t i = 0; i < page; i++)
+    {
+        gram[i] = (uint8_t *)malloc(sizeof(uint8_t) * column);
+        platform_log("allocate space for gram[%d]\r\n", i);
+        if (gram[i] == NULL)
+        {
+            sh1106_gram_destroy(gram, i);
+            gram = NULL;
+
+            break;
+        }
+        memset(gram[i], 0, sizeof(uint8_t) * column);
+    }
+    
+    return gram;
+}
+
+static void sh1106_gram_destroy(uint8_t **gram, uint8_t page)
+{
+    if (gram == NULL)
+    {
+        return;
+    }
+    
+    for (size_t i = 0; i < page; i++)
+    {
+        if (gram[i])
+        {
+            free(gram[i]);
+            gram[i] = NULL;
+        }
+    }
+    free(gram);
+}
 
 DEVICE_INTF_RET_TYPE sh1106_null_ptr_check(sh1106_t *sh1106)
 {
@@ -18,29 +66,11 @@ DEVICE_INTF_RET_TYPE sh1106_null_ptr_check(sh1106_t *sh1106)
     return device_null_ptr_check(sh1106->dev);
 }
 
-DEVICE_INTF_RET_TYPE sh1106_reset(device_t *reset_pin)
-{
-    uint8_t pin_level = 0;
-    platform_t *platform = get_platform();
-    DEVICE_INTF_RET_TYPE ret = device_null_ptr_check(reset_pin);
-    if (ret != SH1106_OK)
-    {
-        return ret;
-    }
-
-    platform->delay_us(100000);
-	pin_level = 0;
-    reset_pin->write(&pin_level, 1, reset_pin->fp, reset_pin->addr);
-    platform->delay_us(100000);
-    pin_level = 1;
-    reset_pin->write(&pin_level, 1, reset_pin->fp, reset_pin->addr);
-    return DEVICE_OK;
-}
-
-DEVICE_INTF_RET_TYPE sh1106_init(sh1106_t *sh1106)
+DEVICE_INTF_RET_TYPE sh1106_init(sh1106_t *sh1106, uint8_t gram_page, uint8_t gram_column)
 {
     device_t *dev = sh1106->dev;
     DEVICE_INTF_RET_TYPE ret = SH1106_OK;
+    uint8_t sh1106_init_sequence[] = {0xAE, 0x00, 0x10, 0x40, 0xB0, 0x81, 0xEF, 0xA1, 0xC8, 0xA8, 0X3F, 0xD3, 0X00, 0xD5, 0x80, 0xD9, 0xF1, 0xDA, 0x12, 0xDB, 0x30, 0x8D, 0x14, 0xA4, 0xA6};
 
     ret = sh1106_null_ptr_check(sh1106);
     if (ret != SH1106_OK)
@@ -53,126 +83,26 @@ DEVICE_INTF_RET_TYPE sh1106_init(sh1106_t *sh1106)
         return SH1106_E_UNINIT_INTERFACE;
     }
 
+    sh1106->gram_page = gram_page;
+    sh1106->gram_column = gram_column;
+    // if (sh1106->gram == NULL)
+    // {
+    //     sh1106->gram = sh1106_gram_create(gram_page, gram_column);
+    //     if (sh1106->gram == NULL)
+    //     {
+    //         return SH1106_E_HEAP_OVERFLOW;
+    //     }
+    //     sh1106->gram_page = gram_page;
+    //     sh1106->gram_column = gram_column;
+    // }
+    
+    // oled config
     sh1106_reset(sh1106->reset_pin);
+	sh1106_send_cmd_seq(sh1106, sh1106_init_sequence, sizeof(sh1106_init_sequence));
+    sh1106_new_frame(sh1106);
+    sh1106_show_frame(sh1106);
+    sh1106_send_cmd(sh1106, 0xAF);
 
-    sh1106_send_cmd(sh1106, 0xAE); /*关闭显示 display off*/
-	sh1106_send_cmd(sh1106, 0xD5); /*设置内部时钟频率 set osc frequency*/
-	sh1106_send_cmd(sh1106, 0x80);
-	sh1106_send_cmd(sh1106, 0xA8); /*多路复用率 multiplex ratio*/
-	sh1106_send_cmd(sh1106, 0x3F); /*duty = 1/64*/
-	sh1106_send_cmd(sh1106, 0xD3); /*设置显示偏移 set display offset*/
-	sh1106_send_cmd(sh1106, 0x00); /* 0x00 */
-
-	sh1106_send_cmd(sh1106, 0x40); /*设置起始行 set display start line*/
-	sh1106_send_cmd(sh1106, 0x02); /*设置列起始地址 set lower column address*/
-	sh1106_send_cmd(sh1106, 0x10); /*设置列结束地址 set higher column address*/
-
-	sh1106_send_cmd(sh1106, 0xB0); /*设置页地址 set page address*/
-
-	sh1106_send_cmd(sh1106, 0xA1); /*设置分段重映射 从右到左 set segment remap*/
-	sh1106_send_cmd(sh1106, 0xC8); /*设置输出扫描方向 COM[N-1]到COM[0] Com scan direction*/
-	
-	sh1106_send_cmd(sh1106, 0xDA); /*设置引脚布局 set COM pins*/
-	sh1106_send_cmd(sh1106, 0x12);
-	sh1106_send_cmd(sh1106, 0x81); /*设置对比度 contract control*/
-	sh1106_send_cmd(sh1106, 0xCF); /*128*/
-
-	sh1106_send_cmd(sh1106, 0xAD); /*设置启动电荷泵 set charge pump enable*/
-	sh1106_send_cmd(sh1106, 0x8B); /*启动DC-DC */
-
-	sh1106_send_cmd(sh1106, 0x33); /*设置泵电压 set VPP 10V */
-
-	sh1106_send_cmd(sh1106, 0xD9); /*设置放电/预充电时间 set pre-charge period*/
-	sh1106_send_cmd(sh1106, 0x1F); /*0x22*/
-
-	sh1106_send_cmd(sh1106, 0xDB); /*设置电平 set vcomh*/
-	sh1106_send_cmd(sh1106, 0x40);
-
-	sh1106_send_cmd(sh1106, 0xA4);
-	sh1106_send_cmd(sh1106, 0xA6); /*正向显示 normal / reverse*/
-
-	sh1106_new_frame(sh1106);
-	sh1106_show_frame(sh1106);
-	sh1106_send_cmd(sh1106,0xAF); /*开启显示 display ON*/
-
-    return SH1106_OK;
-}
-
-DEVICE_INTF_RET_TYPE sh1106_send_data(sh1106_t *sh1106, uint8_t *data, uint16_t len)
-{
-    device_type_t dtype;
-    device_t *dev = sh1106->dev;
-    uint8_t cmd = (data[0] != 0);
-    DEVICE_INTF_RET_TYPE ret = sh1106_null_ptr_check(sh1106);
-	platform_t *plt = get_platform();
-
-    if (ret != SH1106_OK)
-    {
-        return ret;
-    }
-
-    get_device_info(dev, "%t", &dtype);
-    if (dtype == SPI)
-    {
-        device_t *nss_pin = (device_t *)dev->addr;
-		device_t *dc_pin = sh1106->dc_pin;
-        uint8_t gpio_level = 0;
-        if (device_null_ptr_check(nss_pin) != DEVICE_OK || \
-			device_null_ptr_check(dc_pin) != DEVICE_OK)
-        {
-            return SH1106_E_NULLPTR;
-        }
-
-		dc_pin->write(&cmd, 1, dc_pin->fp, dc_pin->addr);
-        nss_pin->write(&gpio_level, 1, nss_pin->fp, nss_pin->addr);
-        ret = dev->write(data + 1, len - 1, dev->fp, dev->addr);
-        gpio_level = 1;
-        nss_pin->write(&gpio_level, 1, nss_pin->fp, nss_pin->addr);
-        dc_pin->write(&gpio_level, 1, dc_pin->fp, dc_pin->addr);
-    }
-    else
-    {
-        ret = dev->write(data, len, dev->fp, dev->addr);
-    }
-
-    return ret;
-}
-
-DEVICE_INTF_RET_TYPE sh1106_send_cmd(sh1106_t *sh1106, uint8_t cmd)
-{
-    static uint8_t send_buffer[2] = {0};
-	device_t *dev = sh1106->dev;
-	device_t *nss_pin = (device_t *)dev->addr;
-	device_t *dc_pin = sh1106->dc_pin;
-	uint8_t gpio_level = 0;
-	DEVICE_INTF_RET_TYPE ret;
-
-	send_buffer[1] = cmd;
-	dc_pin->write(&send_buffer[0], 1, dc_pin->fp, dc_pin->addr);
-	nss_pin->write(&gpio_level, 1, nss_pin->fp, nss_pin->addr);
-//	sh1106->send_cmd(send_buffer[1], 0);
-	ret = dev->write(&send_buffer[1], 1, dev->fp, dev->addr);
-	gpio_level = 1;
-	nss_pin->write(&gpio_level, 1, nss_pin->fp, nss_pin->addr);
-	dc_pin->write(&gpio_level, 1, dc_pin->fp, dc_pin->addr);
-	return ret;
-}
-
-DEVICE_INTF_RET_TYPE sh1106_send_data_stream(sh1106_t *sh1106, uint8_t *data, uint16_t data_size)
-{
-    uint8_t send_buffer = 1;
-	device_t *dev = sh1106->dev;
-	device_t *nss_pin = (device_t *)dev->addr;
-	device_t *dc_pin = sh1106->dc_pin;
-	uint8_t gpio_level = 0;
-	DEVICE_INTF_RET_TYPE ret;
-
-	dc_pin->write(&send_buffer, 1, dc_pin->fp, dc_pin->addr);
-	nss_pin->write(&gpio_level, 1, nss_pin->fp, nss_pin->addr);
-	ret = dev->write(data, data_size, dev->fp, dev->addr);
-	gpio_level = 1;
-	nss_pin->write(&gpio_level, 1, nss_pin->fp, nss_pin->addr);
-	dc_pin->write(&gpio_level, 1, dc_pin->fp, dc_pin->addr);
 	return ret;
 }
 
@@ -212,6 +142,62 @@ DEVICE_INTF_RET_TYPE sh1106_interface_init(sh1106_t *sh1106, device_t *dev, devi
     return DEVICE_OK;
 }
 
+DEVICE_INTF_RET_TYPE sh1106_reset(device_t *reset_pin)
+{
+    DEVICE_INTF_RET_TYPE ret = device_null_ptr_check(reset_pin);
+    if (ret != SH1106_OK)
+    {
+        return ret;
+    }
+
+    platform_delay_ms(100);
+    device_write_byte(reset_pin, 0);
+    platform_delay_ms(100);
+    device_write_byte(reset_pin, 1);
+
+    return SH1106_OK;
+}
+
+DEVICE_INTF_RET_TYPE sh1106_send_cmd(sh1106_t *sh1106, uint8_t data)
+{
+    return sh1106_write(sh1106, &data, 1, 0);
+}
+
+DEVICE_INTF_RET_TYPE sh1106_write(sh1106_t *sh1106, uint8_t *data, uint16_t len, uint8_t cmd)
+{
+	device_t *dev = sh1106->dev;
+	device_t *nss_pin = (device_t *)dev->addr;
+	device_t *dc_pin = sh1106->dc_pin;
+    DEVICE_INTF_RET_TYPE ret;
+
+    ret = device_write_byte(dc_pin, cmd);
+    ret = device_write_byte(nss_pin, 0);
+    ret = device_write(dev, data, len);
+    ret = device_write_byte(nss_pin, 1);
+    ret = device_write_byte(dc_pin, 1);
+	
+	return ret;
+}
+
+void sh1106_new_frame(sh1106_t *sh1106)
+{
+    memset(sh1106->gram, 0, sizeof(uint8_t)*sh1106->gram_page*sh1106->gram_column);
+}
+
+void sh1106_show_frame(sh1106_t *sh1106)
+{
+    for (size_t i = 0; i < sh1106->gram_page; i++)
+    {
+        uint8_t cmd_seq[3] = {0xB0 + i, 0x02, 0x10};
+        sh1106_send_cmd_seq(sh1106, cmd_seq, 3);
+        if(sh1106->gram[i]) {
+			sh1106_send_data(sh1106, sh1106->gram[i], sh1106->gram_column);
+		} else {
+			platform_log("gram[%d] is null\r\n", i);
+		}
+    }
+}
+
 DEVICE_INTF_RET_TYPE sh1106_display_on(sh1106_t *sh1106)
 {
     sh1106_send_cmd(sh1106, 0x8D);
@@ -227,50 +213,6 @@ DEVICE_INTF_RET_TYPE sh1106_display_off(sh1106_t *sh1106)
     sh1106_send_cmd(sh1106, 0x8D);
     sh1106_send_cmd(sh1106, 0x10);
 
-    return SH1106_OK;
-}
-
-DEVICE_INTF_RET_TYPE sh1106_new_frame(sh1106_t *sh1106)
-{
-    DEVICE_INTF_RET_TYPE ret = sh1106_null_ptr_check(sh1106);
-
-    if (ret != DEVICE_OK)
-    {
-        return ret;
-    }
-
-//    memset(sh1106->gpu, 0, sizeof(uint8_t) * SH1106_PAGE * SH1106_COLUMN);
-	memset(OLED_GRAM, 0, sizeof(OLED_GRAM));
-    return SH1106_OK;
-}
-
-DEVICE_INTF_RET_TYPE sh1106_show_frame(sh1106_t *sh1106)
-{
-    DEVICE_INTF_RET_TYPE ret = sh1106_null_ptr_check(sh1106);
-    static uint8_t *send_buffer = NULL;
-    static uint8_t send_buffer_size = 0;
-
-    if (ret != SH1106_OK)
-    {
-        return ret;
-    }
-
-    if (send_buffer == NULL)
-    {
-        send_buffer_size = SH1106_COLUMN + 1;
-        send_buffer = malloc(sizeof(uint8_t) * send_buffer_size);
-        send_buffer[0] = 0x40;
-    }
-
-    for (size_t i = 0; i < SH1106_PAGE; i++)
-    {
-        sh1106_send_cmd(sh1106, 0xB0 + i);
-        sh1106_send_cmd(sh1106, SH1106_LOWER_COLUMN_ADDRESS(0x02));  // set lower column address
-        sh1106_send_cmd(sh1106, SH1106_HIGHER_COLUMN_ADDRESS(0x10)); // set higher column address
-//        memcpy(send_buffer + 1, sh1106->gpu[i], SH1106_COLUMN);
-		memcpy(send_buffer + 1, OLED_GRAM[i], SH1106_COLUMN);
-        sh1106_send_data_stream(sh1106, send_buffer+1, SH1106_COLUMN);
-    }
     return SH1106_OK;
 }
 
@@ -295,13 +237,11 @@ DEVICE_INTF_RET_TYPE sh1106_set_pixel(sh1106_t *sh1106, uint8_t x, uint8_t y, SH
 
     if (mode & 0x01)
     {
-//        sh1106->gpu[y / 8][x] &= ~(1 << (y % 8));
-		OLED_GRAM[y / 8][x] &= ~(1 << (y % 8));
+       sh1106->gram[y / 8][x] &= ~(1 << (y % 8));
     }
     else
     {
-		OLED_GRAM[y / 8][x] |= 1 << (y % 8);
-//        sh1106->gpu[y / 8][x] |= 1 << (y % 8);
+       sh1106->gram[y / 8][x] |= 1 << (y % 8);
     }
 
     return SH1106_OK;
@@ -326,11 +266,9 @@ DEVICE_INTF_RET_TYPE sh1106_set_byte_fine(sh1106_t *sh1106, uint8_t page, uint8_
         data = ~data;
 
     temp = data | (0xff << (end + 1)) | (0xff >> (8 - start));
-//    sh1106->gpu[page][column] &= temp;
-	OLED_GRAM[page][column] &= temp;
+    sh1106->gram[page][column] &= temp;
     temp = data & ~(0xff << (end + 1)) & ~(0xff >> (8 - start));
-//    sh1106->gpu[page][column] |= temp;
-	OLED_GRAM[page][column] |= temp;
+    sh1106->gram[page][column] |= temp;
 
     return SH1106_OK;
 }
@@ -351,8 +289,7 @@ DEVICE_INTF_RET_TYPE sh1106_set_byte(sh1106_t *sh1106, uint8_t page, uint8_t col
 
     if (mode & 0x01)
         data = ~data;
-//    sh1106->gpu[page][column] = data;
-	OLED_GRAM[page][column] = data;
+    sh1106->gram[page][column] = data;
 
     return SH1106_OK;
 }
@@ -381,13 +318,13 @@ DEVICE_INTF_RET_TYPE sh1106_set_bits(sh1106_t *sh1106, uint8_t x, uint8_t y, uin
 {
     uint8_t page = y / 8;
     uint8_t bit = y % 8;
-
+	DEVICE_INTF_RET_TYPE ret = sh1106_set_byte_fine(sh1106, page, x, data << bit, bit, 7, mode);
     if (bit)
     {
-        return sh1106_set_byte_fine(sh1106, page + 1, x, data >> (8 - bit), 0, bit - 1, mode);
+        ret = sh1106_set_byte_fine(sh1106, page + 1, x, data >> (8 - bit), 0, bit - 1, mode);
     }
 
-    return sh1106_set_byte_fine(sh1106, page, x, data << bit, bit, 7, mode);
+    return ret;
 }
 
 DEVICE_INTF_RET_TYPE sh1106_set_block(sh1106_t *sh1106, uint8_t x, uint8_t y, const uint8_t *data, uint8_t w, uint8_t h, SH1106_ColorMode mode)
@@ -401,7 +338,7 @@ DEVICE_INTF_RET_TYPE sh1106_set_block(sh1106_t *sh1106, uint8_t x, uint8_t y, co
         for (uint8_t j = 0; j < full_row; j++)
         {
             ret = sh1106_set_bits(sh1106, x + i, y + j * 8, data[i + j * w], mode);
-            if (ret != SH1106_OK)
+			if (ret != SH1106_OK)
                 return ret;
         }
     }
@@ -411,7 +348,7 @@ DEVICE_INTF_RET_TYPE sh1106_set_block(sh1106_t *sh1106, uint8_t x, uint8_t y, co
         for (uint8_t i = 0; i < w; i++)
         {
             ret = sh1106_set_bits_fine(sh1106, x + i, y + (full_row * 8), data[full_num + i], part_bit, mode);
-            if (ret != SH1106_OK)
+			if (ret != SH1106_OK)
                 return ret;
         }
     }

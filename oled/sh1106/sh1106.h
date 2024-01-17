@@ -112,15 +112,7 @@
 #define SH1106_COLUMN                   132                 // OLED columns
 #endif
 
-typedef enum {
-  SH1106_COLOR_NORMAL = 0xA6, // bg: black, color: white
-  SH1106_COLOR_REVERSED = 0xA7    // bg: white, color: black
-} SH1106_ColorMode;
-
 typedef struct sh1106_dev sh1106_t;
-typedef struct sh1106_dev_attr sh1106_attr_t;
-typedef struct sh1106_dev_gpu sh1106_gpu_t;
-typedef enum sh1106_ret sh1106_ret_t;
 
 struct sh1106_dev
 {
@@ -129,11 +121,12 @@ struct sh1106_dev
 
     // dc pin: low: command, hig: data
     device_t *dc_pin;
-	
-//	int (*send_cmd)(uint8_t data, uint8_t cmd);
 
-    // gpu
-//    uint8_t  gpu[SH1106_COLUMN][SH1106_PAGE];
+    // oled graphic cache
+    // uint8_t **gram;
+    uint8_t gram[SH1106_PAGE][SH1106_COLUMN];
+    uint8_t gram_page;
+    uint8_t gram_column;
 };
 
 enum sh1106_ret
@@ -159,25 +152,24 @@ enum sh1106_ret
     RET_ERROR(SH1106, HAL_OOB)
 };
 
+typedef enum {
+  SH1106_COLOR_NORMAL = 0xA6, // bg: black, color: white
+  SH1106_COLOR_REVERSED = 0xA7    // bg: white, color: black
+} SH1106_ColorMode;
+
 DEVICE_INTF_RET_TYPE sh1106_null_ptr_check(sh1106_t *sh1106);
 
-DEVICE_INTF_RET_TYPE sh1106_reset(device_t *reset_pin);
-DEVICE_INTF_RET_TYPE sh1106_init(sh1106_t *sh1106);
-DEVICE_INTF_RET_TYPE oled_sh1106_init(sh1106_t *sh1106);
-sh1106_attr_t *sh1106_attr_create(uint32_t page, uint32_t column);
-void sh1106_attr_destroy(sh1106_attr_t *attr);
-sh1106_gpu_t *sh1106_gpu_create(uint32_t page, uint32_t column);
-sh1106_gpu_t *sh1106_get_gpu(sh1106_t *sh1106);
-void sh1106_gpu_destroy(sh1106_gpu_t *gpu, uint32_t page);
-DEVICE_INTF_RET_TYPE sh1106_attr_init(sh1106_t *sh1106, uint32_t page, uint32_t column);
+DEVICE_INTF_RET_TYPE sh1106_init(sh1106_t *sh1106, uint8_t gram_page, uint8_t gram_column);
 DEVICE_INTF_RET_TYPE sh1106_interface_init(sh1106_t *sh1106, device_t *dev, device_t *reset_pin, device_t *dc_pin, device_type_t dtype);
 
-DEVICE_INTF_RET_TYPE sh1106_send_cmd(sh1106_t *sh1106, uint8_t cmd);
-DEVICE_INTF_RET_TYPE sh1106_send_data(sh1106_t *sh1106, uint8_t *data, uint16_t len);
+DEVICE_INTF_RET_TYPE sh1106_reset(device_t *reset_pin);
+DEVICE_INTF_RET_TYPE sh1106_write(sh1106_t *sh1106, uint8_t *data, uint16_t len, uint8_t cmd);
+DEVICE_INTF_RET_TYPE sh1106_send_cmd(sh1106_t *sh1106, uint8_t data);
+
+void sh1106_new_frame(sh1106_t *sh1106);
+void sh1106_show_frame(sh1106_t *sh1106);
 DEVICE_INTF_RET_TYPE sh1106_display_on(sh1106_t *sh1106);
 DEVICE_INTF_RET_TYPE sh1106_display_off(sh1106_t *sh1106);
-DEVICE_INTF_RET_TYPE sh1106_new_frame(sh1106_t *sh1106);
-DEVICE_INTF_RET_TYPE sh1106_show_frame(sh1106_t *sh1106);
 DEVICE_INTF_RET_TYPE sh1106_set_color_mode(sh1106_t *sh1106, SH1106_ColorMode mode);
 
 DEVICE_INTF_RET_TYPE sh1106_set_pixel(sh1106_t *sh1106, uint8_t x, uint8_t y, SH1106_ColorMode mode);
